@@ -1,0 +1,24 @@
+{
+  "name": "opinionated-modular-pi-todo-system-ompts",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Pi todo extension with normal and OpenSpec sync modes. Local derivative of @juicesharp/rpiv-todo 2.11.0.",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p ."
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.1",
+    "vitest": "^5.0.3"
+  }
+}
