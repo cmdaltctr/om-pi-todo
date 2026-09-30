@@ -121,6 +121,43 @@ describe("normal mode: tool parity", () => {
 	});
 });
 
+describe("normal mode: waiting and failure reasons", () => {
+	it("stores reasons, reports them in get, and clears them with an empty string", async () => {
+		const host = setup();
+		const ctx = createCtx("s1");
+		await callTool(host, ctx, { action: "create", subject: "A" });
+		const set = await callTool(host, ctx, { action: "update", id: 1, waitingReason: "approval from Sam", failureReason: "review failed" });
+		expect(set.text).toBe("Updated #1");
+		expect(set.details.tasks[0]).toMatchObject({ waitingReason: "approval from Sam", failureReason: "review failed" });
+		expect((await callTool(host, ctx, { action: "get", id: 1 })).text).toBe("#1 [pending] A\n  waiting: approval from Sam\n  failed: review failed");
+		const cleared = await callTool(host, ctx, { action: "update", id: 1, waitingReason: "", failureReason: "" });
+		expect(cleared.details.tasks[0]).toEqual({ id: 1, subject: "A", status: "pending" });
+	});
+
+	it("reports an unchanged reason as no change", async () => {
+		const host = setup();
+		const ctx = createCtx("s1");
+		await callTool(host, ctx, { action: "create", subject: "A" });
+		await callTool(host, ctx, { action: "update", id: 1, waitingReason: "x" });
+		expect((await callTool(host, ctx, { action: "update", id: 1, waitingReason: "x" })).text).toMatch(/^No change: #1/);
+	});
+
+	it("shows reasons in list lines", async () => {
+		const host = setup();
+		const ctx = createCtx("s1");
+		await callTool(host, ctx, { action: "create", subject: "A" });
+		await callTool(host, ctx, { action: "update", id: 1, waitingReason: "input" });
+		expect((await callTool(host, ctx, { action: "list" })).text).toBe("[pending] #1 A (waiting: input)");
+	});
+
+	it("keeps the schema's new fields optional so existing calls stay valid", async () => {
+		const host = setup();
+		const schema = host.tools.get("todo").parameters;
+		expect(schema.required).toEqual(["action"]);
+		for (const key of ["scope", "reason", "expectedRevision", "waitingReason", "failureReason"]) expect(Object.keys(schema.properties)).toContain(key);
+	});
+});
+
 describe("normal mode: /todos command", () => {
 	async function run(host: ReturnType<typeof createHost>, ctx: any) {
 		await host.commands.get("todos").handler("", ctx);

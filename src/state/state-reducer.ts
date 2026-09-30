@@ -58,6 +58,8 @@ function taskChanged(before: Task, after: Task): boolean {
 		before.description !== after.description ||
 		before.activeForm !== after.activeForm ||
 		before.owner !== after.owner ||
+		before.waitingReason !== after.waitingReason ||
+		before.failureReason !== after.failureReason ||
 		!sameNumberList(before.blockedBy, after.blockedBy) ||
 		!sameRecord(before.metadata, after.metadata)
 	);
@@ -94,6 +96,8 @@ export function applyTaskMutation(state: TaskState, action: TaskAction, params: 
 			if (params.activeForm) newTask.activeForm = params.activeForm;
 			if (params.blockedBy?.length) newTask.blockedBy = [...params.blockedBy];
 			if (params.owner) newTask.owner = params.owner;
+			if (params.waitingReason) newTask.waitingReason = params.waitingReason;
+			if (params.failureReason) newTask.failureReason = params.failureReason;
 			if (params.metadata) newTask.metadata = { ...params.metadata };
 
 			const newTasks = [...state.tasks, newTask];
@@ -115,6 +119,8 @@ export function applyTaskMutation(state: TaskState, action: TaskAction, params: 
 				params.activeForm !== undefined ||
 				params.status !== undefined ||
 				params.owner !== undefined ||
+				params.waitingReason !== undefined ||
+				params.failureReason !== undefined ||
 				params.metadata !== undefined ||
 				(params.addBlockedBy && params.addBlockedBy.length > 0) ||
 				(params.removeBlockedBy && params.removeBlockedBy.length > 0);
@@ -165,6 +171,14 @@ export function applyTaskMutation(state: TaskState, action: TaskAction, params: 
 			if (params.description !== undefined) updated.description = params.description;
 			if (params.activeForm !== undefined) updated.activeForm = params.activeForm;
 			if (params.owner !== undefined) updated.owner = params.owner;
+			if (params.waitingReason !== undefined) {
+				if (params.waitingReason === "") delete updated.waitingReason;
+				else updated.waitingReason = params.waitingReason;
+			}
+			if (params.failureReason !== undefined) {
+				if (params.failureReason === "") delete updated.failureReason;
+				else updated.failureReason = params.failureReason;
+			}
 			if (newBlockedBy.length) updated.blockedBy = newBlockedBy;
 			else delete updated.blockedBy;
 			if (newMetadata === undefined) delete updated.metadata;

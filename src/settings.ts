@@ -36,12 +36,18 @@ async function saveAndReport(ctx: Ctx, patch: Parameters<typeof savePreferences>
 	else ctx.ui.notify(result.error, "error");
 }
 
-async function chooseSessionMode(pi: ExtensionAPI, ctx: Ctx, discover: ChangeDiscovery): Promise<void> {
+/** Called after a session's mode or binding changed, so sync can restart for it. */
+export interface SettingsHooks {
+	onModeChanged?(ctx: Ctx): void | Promise<void>;
+}
+
+async function chooseSessionMode(pi: ExtensionAPI, ctx: Ctx, discover: ChangeDiscovery, hooks: SettingsHooks): Promise<void> {
 	const id = sid(ctx);
 	const mode = await pickMode(ctx, "Session mode");
 	if (mode === undefined) return;
 	if (mode === "normal") {
 		persistSessionMode(pi, id, { mode: "normal" });
+		await hooks.onModeChanged?.(ctx);
 		ctx.ui.notify("Normal mode. The OpenSpec task file was not changed.", "info");
 		return;
 	}
@@ -68,6 +74,7 @@ async function chooseSessionMode(pi: ExtensionAPI, ctx: Ctx, discover: ChangeDis
 	const confirmed = await ctx.ui.confirm("Bind this session to an OpenSpec change?", `Change: ${change.name}\nPlanning root: ${found.root}${found.rootSource ? ` (${found.rootSource})` : ""}`);
 	if (!confirmed) return;
 	persistSessionMode(pi, id, { mode: "openspec", binding: { root: found.root, change: change.name } });
+	await hooks.onModeChanged?.(ctx);
 	ctx.ui.notify(`OpenSpec sync enabled for ${change.name} (${found.root}).`, "info");
 }
 
@@ -101,7 +108,7 @@ async function chooseCollapseKey(ctx: Ctx): Promise<void> {
 	await saveAndReport(ctx, { collapseKey: key }, "Collapse key saved. Run /reload to apply it.");
 }
 
-export function registerTodoSettingsCommand(pi: ExtensionAPI, discover: ChangeDiscovery): void {
+export function registerTodoSettingsCommand(pi: ExtensionAPI, discover: ChangeDiscovery, hooks: SettingsHooks = {}): void {
 	pi.registerCommand(SETTINGS_COMMAND, {
 		description: "Choose the todo mode for this session and set todo defaults",
 		handler: async (_args, ctx) => {
@@ -122,7 +129,7 @@ export function registerTodoSettingsCommand(pi: ExtensionAPI, discover: ChangeDi
 				if (choice === undefined || choice === DONE) return;
 				switch (items.indexOf(choice)) {
 					case 0:
-						await chooseSessionMode(pi, ctx, discover);
+						await chooseSessionMode(pi, ctx, discover, hooks);
 						break;
 					case 1:
 						await chooseDefaultMode(ctx);

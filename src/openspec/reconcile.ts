@@ -19,6 +19,8 @@ export interface Activity {
 	owner?: string;
 	blockedBy?: number[];
 	metadata?: Record<string, unknown>;
+	waitingReason?: string;
+	failureReason?: string;
 }
 
 export type Mapping =

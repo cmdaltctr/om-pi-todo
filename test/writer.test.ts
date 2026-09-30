@@ -607,6 +607,61 @@ describe("repaint after a persisted write", () => {
 	});
 });
 
+describe("obsolete bindings", () => {
+	it("writes nothing when the binding moved during the pre-write refresh", async () => {
+		let current = true;
+		const t = setup(md("- [ ] A"));
+		const view = await t.read();
+		t.cli.hooks.apply = async () => {
+			current = false; // the session rebinds while the writer's own refresh is running
+			return undefined;
+		};
+		const outcome = await t.writer.complete("s1", 1, view.revision!, { isCurrent: () => current });
+		expect(outcome).toMatchObject({ kind: "cancelled" });
+		expect(outcome.kind === "cancelled" && outcome.message).toMatch(/binding changed/i);
+		expect(disk().toString()).toBe(md("- [ ] A"));
+	});
+
+	it("checks again immediately before the replace and leaves no temporary file", async () => {
+		let current = true;
+		let renames = 0;
+		const realStage = defaultFs.writeStaged;
+		const t = setup(md("- [ ] A"), bound, {
+			writeStaged: async (path, bytes, mode) => {
+				await realStage(path, bytes, mode);
+				current = false; // the binding moves after staging, before the replace
+			},
+			rename: async () => void renames++,
+		});
+		const view = await t.read();
+		expect(await t.writer.complete("s1", 1, view.revision!, { isCurrent: () => current })).toMatchObject({ kind: "cancelled" });
+		expect(renames).toBe(0);
+		expect(disk().toString()).toBe(md("- [ ] A"));
+		expect(leftovers()).toEqual([]);
+	});
+
+	it("reports a write that landed before the binding moved against the original binding, and publishes nothing", async () => {
+		let current = true;
+		const repainted: unknown[] = [];
+		writeFileSync(tasksPath, md("- [ ] A"));
+		const cli = makeFakeCli({ root, change: "a", tasksPath, changeRoot });
+		const provider = createSnapshotProvider({ run: cli.run as any }, { getMode: () => bound(), getOrdinary: () => [] });
+		const writer = createWriter({
+			provider,
+			lock: { waitMs: 150, pollMs: 10 },
+			onCommitted: (snap) => void repainted.push(snap),
+			fs: { rename: async (a, b) => { renameSync(a, b); current = false; } }, // lands, then the binding moves
+		});
+		const view = await provider.refresh("s1");
+		const outcome = await writer.complete("s1", 1, view.revision!, { isCurrent: () => current });
+		expect(outcome).toMatchObject({ kind: "persisted-view-unavailable" });
+		expect(outcome.kind === "persisted-view-unavailable" && outcome.message).toMatch(/binding changed/i);
+		expect(disk().toString()).toBe(md("- [x] A"));
+		expect(repainted).toEqual([]);
+		expect(provider.getSnapshot("s1").writable).toBe(true); // the new binding is not blocked by the old write
+	});
+});
+
 describe("cancellation", () => {
 	it("cancels before persistence without writing", async () => {
 		const t = setup(md("- [ ] A"));

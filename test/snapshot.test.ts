@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ExecResult } from "../src/openspec/exec.js";
 import { createSnapshotProvider } from "../src/openspec/snapshot.js";
-import { listTasks, scanTasks } from "../src/openspec/tasks.js";
+import { fingerprint, listTasks, scanTasks } from "../src/openspec/tasks.js";
 import type { SessionMode } from "../src/session-mode.js";
 import type { Task } from "../src/tool/types.js";
 
@@ -423,6 +423,133 @@ describe("write blocks", () => {
 		h.apply = async () => ok(await applyJson());
 		expect(provider.getSnapshot("s1").writable).toBe(false);
 		expect((await provider.refresh("s1")).writable).toBe(true);
+	});
+});
+
+describe("seeding from replay", () => {
+	const seedRows = () => [
+		{ id: 7, fingerprint: fingerprint("A"), activity: { status: "in_progress" as const, activeForm: "doing A", owner: "me" } },
+		{ id: 9, fingerprint: fingerprint("B") },
+	];
+
+	it("restores ids and activity onto the first refresh and keeps later ids above the seeded next id", async () => {
+		writeFileSync(tasksPath, md("- [ ] A", "- [ ] B", "- [ ] C"));
+		const { provider } = setup();
+		provider.seed("s1", { root, change: "a" }, seedRows(), 12);
+		const snap = await provider.refresh("s1");
+		expect(snap.linked.map((r) => r.id)).toEqual([7, 9, 12]);
+		expect(snap.linked[0].activity).toEqual({ status: "in_progress", activeForm: "doing A", owner: "me" });
+		expect(snap.linkedNextId).toBe(13);
+	});
+
+	it("drops activity for wording that changed since the seed was saved", async () => {
+		writeFileSync(tasksPath, md("- [ ] A reworded", "- [ ] B"));
+		const { provider } = setup();
+		provider.seed("s1", { root, change: "a" }, seedRows(), 12);
+		const snap = await provider.refresh("s1");
+		expect(snap.linked.map((r) => r.id)).toEqual([12, 9]);
+		expect(snap.linked[0].activity).toBeUndefined();
+	});
+
+	it("ignores a seed saved for another change", async () => {
+		writeFileSync(tasksPath, md("- [ ] A"));
+		const { provider } = setup();
+		provider.seed("s1", { root, change: "someone-else" }, seedRows(), 12);
+		const snap = await provider.refresh("s1");
+		expect(snap.linked.map((r) => r.id)).toEqual([1]);
+		expect(snap.linked[0].activity).toBeUndefined();
+	});
+
+	it("does not treat a seed as a read: the view is unavailable until a refresh succeeds", () => {
+		const { provider } = setup();
+		provider.seed("s1", { root, change: "a" }, seedRows(), 12);
+		expect(provider.getSnapshot("s1")).toMatchObject({ freshness: "unavailable", linked: [], writable: false });
+	});
+
+	it("exposes what to persist: ids, wording fingerprints, labels and activity, never wording or completion", async () => {
+		writeFileSync(tasksPath, md("- [x] 1.1 A", "- [ ] 1.2 B"));
+		const { provider } = setup();
+		await provider.refresh("s1");
+		const revision = provider.getSnapshot("s1").revision!;
+		expect(provider.setActivity("s1", 2, { status: "in_progress", activeForm: "b" }, revision)).toBe(true);
+		const saved = provider.persistable("s1");
+		expect(saved).toEqual({
+			binding: { root, change: "a" },
+			nextId: 3,
+			rows: [
+				{ id: 1, fingerprint: fingerprint("1.1 A"), label: "1.1" },
+				{ id: 2, fingerprint: fingerprint("1.2 B"), label: "1.2", activity: { status: "in_progress", activeForm: "b" } },
+			],
+		});
+		expect(JSON.stringify(saved)).not.toMatch(/"description"|"done"/);
+	});
+
+	it("persists a seed that has not been refreshed yet, so a second save does not lose it", () => {
+		const { provider } = setup();
+		provider.seed("s1", { root, change: "a" }, seedRows(), 12);
+		expect(provider.persistable("s1")?.rows.map((r) => r.id)).toEqual([7, 9]);
+		expect(provider.persistable("s1")?.nextId).toBe(12);
+	});
+
+	it("has nothing to persist without a binding", () => {
+		const { provider } = setup([], () => ({ mode: "normal" }));
+		expect(provider.persistable("s1")).toBeUndefined();
+	});
+});
+
+describe("setting activity", () => {
+	it("replaces a row's activity and leaves earlier snapshots unchanged", async () => {
+		writeFileSync(tasksPath, md("- [ ] A"));
+		const { provider } = setup();
+		await provider.refresh("s1");
+		const before = provider.getSnapshot("s1");
+		expect(provider.setActivity("s1", 1, { status: "in_progress", owner: "me" }, before.revision!)).toBe(true);
+		expect(provider.getSnapshot("s1").linked[0].activity).toEqual({ status: "in_progress", owner: "me" });
+		expect(before.linked[0].activity).toBeUndefined();
+		expect(provider.setActivity("s1", 1, undefined, before.revision!)).toBe(true);
+		expect(provider.getSnapshot("s1").linked[0].activity).toBeUndefined();
+	});
+
+	it("refuses a stale revision, an unknown id, an unmappable row, and a stale or unread view", async () => {
+		writeFileSync(tasksPath, md("- [ ] Same", "- [ ] Same", "- [ ] Other"));
+		const { h, provider } = setup();
+		expect(provider.setActivity("s1", 1, {}, "x")).toBe(false); // never read
+		const snap = await provider.refresh("s1");
+		expect(provider.setActivity("s1", 3, { owner: "me" }, "0".repeat(16))).toBe(false);
+		expect(provider.setActivity("s1", 99, { owner: "me" }, snap.revision!)).toBe(false);
+		expect(provider.setActivity("s1", 1, { owner: "me" }, snap.revision!)).toBe(false); // duplicate wording
+		h.apply = () => fail("timeout", "t");
+		await provider.refresh("s1");
+		expect(provider.setActivity("s1", 3, { owner: "me" }, snap.revision!)).toBe(false); // stale view
+	});
+});
+
+describe("obsolete work", () => {
+	it("discards a refresh whose owner is no longer current, without touching the committed view", async () => {
+		writeFileSync(tasksPath, md("- [ ] A"));
+		const { provider } = setup();
+		const good = await provider.refresh("s1");
+		writeFileSync(tasksPath, md("- [ ] A", "- [ ] B"));
+		let current = true;
+		const pending = provider.refresh("s1", { isCurrent: () => current });
+		current = false;
+		await pending;
+		expect(provider.getSnapshot("s1").revision).toBe(good.revision);
+		expect(provider.getSnapshot("s1").linked).toHaveLength(1);
+	});
+
+	it("still consumes ids so a discarded read can never cause id reuse", async () => {
+		writeFileSync(tasksPath, md("- [ ] A"));
+		const { provider } = setup();
+		await provider.refresh("s1", { isCurrent: () => false });
+		writeFileSync(tasksPath, md("- [ ] A"));
+		expect((await provider.refresh("s1")).linked[0].id).toBe(2);
+	});
+
+	it("commits normally when the owner stays current", async () => {
+		writeFileSync(tasksPath, md("- [ ] A"));
+		const { provider } = setup();
+		expect((await provider.refresh("s1", { isCurrent: () => true })).linked).toHaveLength(1);
 	});
 });
 

@@ -36,6 +36,10 @@ export interface Task {
 	blockedBy?: number[];
 	owner?: string;
 	metadata?: Record<string, unknown>;
+	/** Why work is paused for someone else (approval, review, input). Cleared with an empty string. */
+	waitingReason?: string;
+	/** Why work failed or is blocked by an error. Cleared with an empty string. */
+	failureReason?: string;
 }
 
 /**
@@ -50,6 +54,8 @@ export interface TaskDetails {
 	tasks: Task[];
 	nextId: number;
 	error?: string;
+	/** Sync mode only: ids, wording fingerprints and session activity of linked rows. Never wording or completion. */
+	linked?: import("../openspec/snapshot.js").PersistedLinked;
 }
 
 /**
@@ -70,6 +76,14 @@ export interface TaskMutationParams {
 	metadata?: Record<string, unknown>;
 	id?: number;
 	includeDeleted?: boolean;
+	waitingReason?: string;
+	failureReason?: string;
+	/** Sync mode: `incidental` addresses the session's own tasks; linked rows are the default. */
+	scope?: "linked" | "incidental";
+	/** Sync mode: why an incidental task is needed. Required on create. */
+	reason?: string;
+	/** Sync mode: the revision from the latest list/get/result. Required to change a linked task's status. */
+	expectedRevision?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -121,6 +135,33 @@ export const TodoParamsSchema = Type.Object({
 	includeDeleted: Type.Optional(
 		Type.Boolean({
 			description: "If true, list action returns deleted (tombstoned) tasks as well. Default: false.",
+		}),
+	),
+	waitingReason: Type.Optional(
+		Type.String({
+			description: "Why work is paused for someone else, such as an approval or a review. Pass an empty string to clear it.",
+		}),
+	),
+	failureReason: Type.Optional(
+		Type.String({
+			description: "Why work failed or is blocked by an error. Pass an empty string to clear it.",
+		}),
+	),
+	scope: Type.Optional(
+		StringEnum(["linked", "incidental"] as const, {
+			description:
+				"OpenSpec sync mode only. `linked` (default) addresses tasks imported from tasks.md. `incidental` addresses the session's own temporary tasks. Ignored in normal mode.",
+		}),
+	),
+	reason: Type.Optional(
+		Type.String({
+			description: "OpenSpec sync mode only. Why an incidental task is needed. Required when creating one.",
+		}),
+	),
+	expectedRevision: Type.Optional(
+		Type.String({
+			description:
+				"OpenSpec sync mode only. The revision shown by the latest list, get or result. Required to change the status of a linked task.",
 		}),
 	),
 });

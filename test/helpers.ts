@@ -14,13 +14,15 @@ export function createHost() {
 	const commands = new Map<string, any>();
 	const shortcuts = new Map<string, any>();
 	const handlers = new Map<string, Handler[]>();
+	const entries: Array<[string, unknown]> = [];
 	const pi = {
+		appendEntry: (type: string, data: unknown) => void entries.push([type, data]),
 		registerTool: (def: any) => void tools.set(def.name, def),
 		registerCommand: (name: string, def: any) => void commands.set(name, def),
 		registerShortcut: (key: string, def: any) => void shortcuts.set(key, def),
 		on: (event: string, handler: Handler) => void handlers.set(event, [...(handlers.get(event) ?? []), handler]),
 	} as any;
-	return { pi, tools, commands, shortcuts, handlers };
+	return { pi, tools, commands, shortcuts, handlers, entries };
 }
 
 /** Session context: a session id plus the branch entries `replayFromBranch` walks. */

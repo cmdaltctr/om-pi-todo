@@ -1,6 +1,10 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { afterAll, describe, expect, it } from "vitest";
+import { __resetSessionModes, setSessionMode } from "../src/session-mode.js";
+import { createRuntime } from "../src/sync/runtime.js";
+import { registerTodoTool } from "../src/todo.js";
+import { callTool, createCtx, createHost } from "./helpers.js";
 import { createDiscovery } from "../src/openspec/discover.js";
 import { createSnapshotProvider } from "../src/openspec/snapshot.js";
 import { createWriter } from "../src/openspec/writer.js";
@@ -81,4 +85,44 @@ describe.skipIf(!HAS_CLI)("discovery and snapshot against the installed OpenSpec
 		expect(await writer.complete("s1", target.id, again.revision!)).toMatchObject({ kind: "completed", changed: false });
 		expect(await writer.complete("s1", target.id, view.revision!)).toMatchObject({ kind: "rejected", code: "stale-revision" });
 	}, 60_000);
+
+	it("the todo tool completes a task in a real root and a real watcher follows an external edit", async () => {
+		const { tasksPath } = fixture.addChange("tool-e2e", "- [ ] 1.1 A\n- [ ] 1.2 B\n");
+		const id = "e2e-session";
+		setSessionMode(id, { mode: "openspec", binding: { root: root(), change: "tool-e2e" } });
+		const errors: string[] = [];
+		const runtime = createRuntime({ getOrdinary: () => [], watchDelayMs: 100, onError: (m) => void errors.push(m) });
+		const host = createHost();
+		registerTodoTool(host.pi, runtime);
+		const ctx = createCtx(id, []);
+		try {
+			runtime.start(id, ctx);
+			await runtime.idle();
+			expect(runtime.watchedSessions()).toEqual([id]);
+
+			const list = await callTool(host, ctx, { action: "list" });
+			const rev = /expectedRevision "([0-9a-f]{16})"/.exec(list.text)![1];
+			expect((await callTool(host, ctx, { action: "update", id: 1, status: "in_progress", activeForm: "a", expectedRevision: rev })).text).toContain("pending → in_progress");
+			expect(readFileSync(tasksPath, "utf-8")).toBe("- [ ] 1.1 A\n- [ ] 1.2 B\n");
+
+			const rev2 = /expectedRevision "([0-9a-f]{16})"/.exec((await callTool(host, ctx, { action: "list" })).text)![1];
+			const done = await callTool(host, ctx, { action: "update", id: 1, status: "completed", expectedRevision: rev2 });
+			expect(done.text).toContain("CLI confirmed this task as done");
+			expect(readFileSync(tasksPath, "utf-8")).toBe("- [x] 1.1 A\n- [ ] 1.2 B\n");
+			const cli = JSON.parse(spawnSync("openspec", ["instructions", "apply", "--change", "tool-e2e", "--json"], { cwd: fixture.root, encoding: "utf-8" }).stdout);
+			expect(cli.tasks.map((t: any) => t.done)).toEqual([true, false]);
+
+			// An external edit, noticed by the real watcher and the real CLI, with no tool call.
+			writeFileSync(tasksPath, "- [ ] 1.1 A\n- [x] 1.2 B\n");
+			const end = Date.now() + 20_000;
+			const done2 = () => runtime.provider.getSnapshot(id).linked.map((r) => r.done).join() === "false,true";
+			while (!done2() && Date.now() < end) await new Promise((r) => setTimeout(r, 100));
+			expect(runtime.provider.getSnapshot(id).linked.map((r) => r.done)).toEqual([false, true]);
+			expect(errors).toEqual([]);
+		} finally {
+			runtime.stopAll();
+			__resetSessionModes();
+		}
+		expect(runtime.watchedSessions()).toEqual([]);
+	}, 90_000);
 });

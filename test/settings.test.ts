@@ -217,6 +217,44 @@ describe("display preferences", () => {
 	});
 });
 
+describe("mode change hook", () => {
+	async function withHook(answers: Parameters<typeof scriptedUi>[0]) {
+		await refreshPreferences();
+		const host = createHost();
+		(host.pi as any).appendEntry = () => undefined;
+		const seen: Array<{ mode: string }> = [];
+		registerTodoSettingsCommand(host.pi, found, {
+			onModeChanged: async (ctx) => {
+				seen.push({ mode: getSessionMode("s1").mode });
+				void ctx;
+			},
+		});
+		const script = scriptedUi(answers);
+		await host.commands.get("todo-settings").handler("", createCtx("s1", [], { hasUI: true, cwd: "/work/cwd", ui: script.ui }));
+		return seen;
+	}
+
+	it("runs after a session is bound, seeing the new mode already in place", async () => {
+		expect(await withHook({ select: ["Session mode: Normal", "OpenSpec sync", "add-thing", "Done"], confirm: [true] })).toEqual([{ mode: "openspec" }]);
+	});
+
+	it("runs after a return to normal mode", async () => {
+		setSessionMode("s1", { mode: "openspec", binding: { root: ROOT, change: "add-thing" } });
+		expect(await withHook({ select: ["Session mode: OpenSpec sync: add-thing (/work/project)", "Normal", "Done"] })).toEqual([{ mode: "normal" }]);
+	});
+
+	it("does not run when the user cancels, declines, or picks an unsupported change", async () => {
+		expect(await withHook({ select: ["Session mode: Normal", undefined, "Done"] })).toEqual([]);
+		expect(await withHook({ select: ["Session mode: Normal", "OpenSpec sync", undefined, "Done"] })).toEqual([]);
+		expect(await withHook({ select: ["Session mode: Normal", "OpenSpec sync", "add-thing", "Done"], confirm: [false] })).toEqual([]);
+		expect(await withHook({ select: ["Session mode: Normal", "OpenSpec sync", "custom-flow (unsupported: schema 'custom' is not supported)", "Done"] })).toEqual([]);
+	});
+
+	it("does not run for default-mode or display changes", async () => {
+		expect(await withHook({ select: ["Default mode for new sessions: Normal", "OpenSpec sync", "Done"] })).toEqual([]);
+	});
+});
+
 describe("isolation between sessions", () => {
 	it("changes only the session that ran the command", async () => {
 		setSessionMode("other", { mode: "openspec", binding: { root: "/elsewhere", change: "x" } });

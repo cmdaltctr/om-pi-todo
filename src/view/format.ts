@@ -138,7 +138,11 @@ export function renderTodoCall(
  */
 export function renderTodoResult(result: { details?: unknown }, theme: Theme): Text {
 	const details = result.details as TaskDetails | undefined;
+	// A failed call must never look like the status it asked for.
+	if (details?.error) return new Text(theme.fg("error", "✗ failed"), 0, 0);
 	let status: TaskStatus | undefined;
+	// In sync mode a linked id names a task in tasks.md, not one in `details.tasks`, so it is not looked up there.
+	const linkedCall = details?.linked !== undefined && (details.params as TaskMutationParams).scope !== "incidental";
 	if (details) {
 		const params = details.params as TaskMutationParams;
 		switch (details.action) {
@@ -146,7 +150,7 @@ export function renderTodoResult(result: { details?: unknown }, theme: Theme): T
 				status = details.tasks[details.tasks.length - 1]?.status;
 				break;
 			case "update":
-				status = params.status ?? details.tasks.find((t) => t.id === params.id)?.status;
+				status = params.status ?? (linkedCall ? undefined : details.tasks.find((t) => t.id === params.id)?.status);
 				break;
 			case "delete":
 				status = details.tasks.find((t) => t.id === params.id)?.status;

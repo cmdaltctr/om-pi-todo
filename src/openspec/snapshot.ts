@@ -21,7 +21,7 @@ import { selectTodoCounts, type TodoCounts } from "../state/selectors.js";
 import type { Task } from "../tool/types.js";
 import { checkStatus, trackedTaskFile } from "./discover.js";
 import { type ExecOptions, type ExecResult, runOpenspecJson } from "./exec.js";
-import { type CliTasks, type LinkedRow, reconcile } from "./reconcile.js";
+import { type Activity, type CliTasks, type LinkedRow, reconcile } from "./reconcile.js";
 import { revisionOf } from "./tasks.js";
 
 type Run = (args: readonly string[], options: ExecOptions) => Promise<ExecResult>;
@@ -41,6 +41,8 @@ export interface Snapshot {
 	/** OpenSpec's own task progress. Says nothing about tests or verification. */
 	implementation?: { state: "ready" | "blocked" | "all_done"; total: number; complete: number; remaining: number };
 	linked: LinkedRow[];
+	/** Next local id the provider will hand out for a linked row. */
+	linkedNextId: number;
 	ordinary: readonly Task[];
 	ordinaryCounts: TodoCounts;
 	revision?: string;
@@ -85,6 +87,15 @@ interface Slot {
 	nextId: number;
 	/** Set when a completion could not be confirmed; cleared by a later successful refresh. */
 	block?: { reason: string; seq: number };
+	/** Ids and activity restored from session history, used until the first successful read. */
+	seed?: { binding: Binding; rows: LinkedRow[] };
+}
+
+/** What is saved with the session so ids and activity survive reload. Never wording or completion. */
+export interface PersistedLinked {
+	binding: Binding;
+	nextId: number;
+	rows: Array<{ id: number; fingerprint: string; label?: string; activity?: Activity }>;
 }
 
 const MAX_ATTEMPTS = 3;
@@ -148,7 +159,7 @@ export function createSnapshotProvider(deps: SnapshotDeps, sources: SnapshotSour
 	function assemble(sessionId: string): Snapshot {
 		const mode = sources.getMode(sessionId);
 		const ordinary = sources.getOrdinary(sessionId);
-		const base = { mode: mode.mode, ordinary, ordinaryCounts: selectTodoCounts({ tasks: [...ordinary], nextId: 1 }), linked: [] as LinkedRow[], notes: [] as string[], writable: false, needsReselect: false };
+		const base = { mode: mode.mode, linkedNextId: slots.get(sessionId)?.nextId ?? 1, ordinary, ordinaryCounts: selectTodoCounts({ tasks: [...ordinary], nextId: 1 }), linked: [] as LinkedRow[], notes: [] as string[], writable: false, needsReselect: false };
 		if (mode.mode !== "openspec") return { ...base, freshness: "inactive", diagnostics: [] };
 		if (!mode.binding) return { ...base, freshness: "unbound", needsReselect: true, diagnostics: ["OpenSpec sync is selected but no change is chosen. Run /todo-settings to choose one."] };
 
@@ -209,7 +220,8 @@ export function createSnapshotProvider(deps: SnapshotDeps, sources: SnapshotSour
 		}
 		if (revisionOf(before) !== revisionOf(after)) return "changed";
 
-		const previous = s.committed && s.committed.binding.change === binding.change && s.committed.binding.root === binding.root ? s.committed.rows : [];
+		const same = (b: Binding) => b.change === binding.change && b.root === binding.root;
+		const previous = s.committed && same(s.committed.binding) ? s.committed.rows : s.seed && same(s.seed.binding) ? s.seed.rows : [];
 		const result = reconcile({ previous, nextId: s.nextId, cli: view.cli, file: { path: file, content: before } });
 		s.nextId = result.nextId;
 		const artifacts = Array.isArray(record.artifacts) ? record.artifacts.filter(isRecord).map((a) => ({ id: String(a.id), status: String(a.status) })) : [];
@@ -233,7 +245,7 @@ export function createSnapshotProvider(deps: SnapshotDeps, sources: SnapshotSour
 
 	return {
 		/** Read the bound change and commit the result. Never throws. */
-		async refresh(sessionId: string, options: { signal?: AbortSignal } = {}): Promise<Snapshot> {
+		async refresh(sessionId: string, options: { signal?: AbortSignal; isCurrent?: () => boolean } = {}): Promise<Snapshot> {
 			const mode = sources.getMode(sessionId);
 			if (mode.mode !== "openspec" || !mode.binding) return assemble(sessionId);
 			const s = slot(sessionId);
@@ -252,6 +264,8 @@ export function createSnapshotProvider(deps: SnapshotDeps, sources: SnapshotSour
 				outcome = new Failure(`Refresh failed: ${(error as Error).message}`);
 			}
 
+			// An obsolete owner (the session rebound, branched or shut down) must not publish.
+			if (options.isCurrent && !options.isCurrent()) return assemble(sessionId);
 			if (seq > s.committedSeq) {
 				s.committedSeq = seq;
 				if (outcome instanceof Failure) {
@@ -262,6 +276,7 @@ export function createSnapshotProvider(deps: SnapshotDeps, sources: SnapshotSour
 						: { binding, freshness: "unavailable", writable: false, needsReselect: outcome.needsReselect, rows: [], notes: [], diagnostics: [outcome.message] };
 				} else {
 					s.committed = outcome;
+					s.seed = undefined;
 					if (s.block && seq > s.block.seq) s.block = undefined;
 				}
 			}
@@ -272,6 +287,54 @@ export function createSnapshotProvider(deps: SnapshotDeps, sources: SnapshotSour
 		blockWrites(sessionId: string, reason: string): void {
 			const s = slot(sessionId);
 			s.block = { reason, seq: s.started };
+		},
+
+		/** Restore ids and activity saved in session history. Does not make the view readable. */
+		seed(sessionId: string, binding: Binding, rows: PersistedLinked["rows"], nextId: number): void {
+			const current = sources.getMode(sessionId).binding;
+			if (!current || current.root !== binding.root || current.change !== binding.change) return; // saved for another change
+			const s = slot(sessionId);
+			s.seed = {
+				binding: { ...binding },
+				rows: rows.map((r) => ({
+					id: r.id,
+					rowId: "",
+					description: "",
+					fingerprint: r.fingerprint,
+					...(r.label ? { label: r.label } : {}),
+					done: false,
+					mapping: { ok: false, reason: "not yet read" },
+					...(r.activity ? { activity: structuredClone(r.activity) } : {}),
+				})),
+			};
+			s.nextId = Math.max(s.nextId, nextId, ...rows.map((r) => r.id + 1));
+		},
+
+		/** Replace one row's session activity. Refused unless the view is fresh and the revision matches. */
+		setActivity(sessionId: string, id: number, activity: Activity | undefined, revision: string): boolean {
+			const c = slots.get(sessionId)?.committed;
+			if (!c || c.freshness !== "fresh" || c.revision !== revision) return false;
+			const row = c.rows.find((r) => r.id === id);
+			if (!row || !row.mapping.ok) return false;
+			const { activity: _old, ...rest } = row;
+			const next: LinkedRow = activity && Object.keys(activity).length ? { ...rest, activity: structuredClone(activity) } : rest;
+			c.rows = c.rows.map((r) => (r.id === id ? next : r));
+			return true;
+		},
+
+		/** The data to save with the session, or undefined when nothing is bound. */
+		persistable(sessionId: string): PersistedLinked | undefined {
+			const s = slots.get(sessionId);
+			const mode = sources.getMode(sessionId);
+			if (!s || mode.mode !== "openspec" || !mode.binding) return undefined;
+			const same = (b: Binding) => b.change === mode.binding!.change && b.root === mode.binding!.root;
+			const rows = s.committed && same(s.committed.binding) ? s.committed.rows : s.seed && same(s.seed.binding) ? s.seed.rows : undefined;
+			if (!rows) return undefined;
+			return {
+				binding: { ...mode.binding },
+				nextId: s.nextId,
+				rows: rows.map((r) => ({ id: r.id, fingerprint: r.fingerprint, ...(r.label ? { label: r.label } : {}), ...(r.activity ? { activity: structuredClone(r.activity) } : {}) })),
+			};
 		},
 
 		/** What every view shows right now. Reads no files and starts no process. */

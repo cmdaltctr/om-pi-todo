@@ -18,6 +18,7 @@ import { COLLAPSE_KEY_OFF } from "./config.js";
 import { getMaxWidgetLines, resolveCollapseKey } from "./preferences.js";
 import { formatStatusLabel, t } from "./state/labels.js";
 import { selectHasActive, selectOverlayLayout, selectShowTaskIds, selectTodoCounts } from "./state/selectors.js";
+import type { TaskState } from "./state/state.js";
 import { getRenderState } from "./state/store.js";
 import { formatOverlayTaskLine } from "./view/format.js";
 
@@ -30,6 +31,9 @@ const OVERLAY_EXPAND_HINT = "{key} to expand";
 const OVERLAY_COLLAPSED = "collapsed";
 
 export class TodoOverlay {
+	/** `source` supplies the tasks to show. The default is the foreground session's ordinary list. */
+	constructor(private readonly source: () => TaskState = getRenderState) {}
+
 	private uiCtx: ExtensionUIContext | undefined;
 	private widgetRegistered = false;
 	private tui: TUI | undefined;
@@ -111,7 +115,7 @@ export class TodoOverlay {
 	}
 
 	private getSnapshot() {
-		const state = getRenderState();
+		const state = this.source();
 		if (this.lastNextId !== undefined && state.nextId < this.lastNextId) {
 			this.resetCompletedDisplayState();
 		}

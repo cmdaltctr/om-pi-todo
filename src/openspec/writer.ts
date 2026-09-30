@@ -98,8 +98,10 @@ export function createWriter(deps: WriterDeps) {
 	const { provider } = deps;
 	const fs = (): WriterFs => ({ ...defaultFs, ...deps.fs });
 
-	async function complete(sessionId: string, localId: number, expectedRevision: string, options: { signal?: AbortSignal } = {}): Promise<CompletionOutcome> {
+	async function complete(sessionId: string, localId: number, expectedRevision: string, options: { signal?: AbortSignal; isCurrent?: () => boolean } = {}): Promise<CompletionOutcome> {
 		const { signal } = options;
+		const current = () => options.isCurrent?.() !== false;
+		const MOVED = "The session's binding changed, so this completion was cancelled.";
 		const view = () => provider.getSnapshot(sessionId);
 		const reject = (code: RejectCode, message: string, action: string): CompletionOutcome => ({ kind: "rejected", code, message, action, snapshot: view() });
 		const cancelled = (message: string): CompletionOutcome => ({ kind: "cancelled", message, snapshot: view() });
@@ -110,8 +112,9 @@ export function createWriter(deps: WriterDeps) {
 		}
 		if (signal?.aborted) return cancelled("Cancelled before the completion started");
 
-		const snap = await provider.refresh(sessionId, { signal });
+		const snap = await provider.refresh(sessionId, { signal, isCurrent: options.isCurrent });
 		if (signal?.aborted) return cancelled("Cancelled while reading the task file");
+		if (!current()) return cancelled(MOVED);
 		if (snap.freshness !== "fresh" || !snap.writable || !snap.file || !snap.changeRoot || !snap.revision) {
 			return reject("not-writable", `Linked tasks cannot be changed now: ${snap.diagnostics.join("; ") || snap.freshness}`, REFRESH);
 		}
@@ -161,6 +164,7 @@ export function createWriter(deps: WriterDeps) {
 
 				if (revisionOf(await f.readFile(real)) !== snap.revision) return fail("conflict", "The task file changed while the new version was being staged.", REFRESH);
 				if (signal?.aborted) return fail("write-failed", "Cancelled before the file was replaced.", "Retry when ready.");
+				if (!current()) return fail("write-failed", `Cancelled before the file was replaced. ${MOVED}`, "Choose the change again if needed.");
 
 				await f.rename(staged, real);
 				staged = undefined;
@@ -183,7 +187,7 @@ export function createWriter(deps: WriterDeps) {
 		}
 		const staged = locked.value;
 		if (!staged.persisted) {
-			if (staged.message === "Cancelled before the file was replaced.") return cancelled(staged.message);
+			if (staged.message.startsWith("Cancelled before the file was replaced.")) return cancelled(staged.message);
 			return reject(staged.code, staged.message, staged.action);
 		}
 
@@ -196,7 +200,16 @@ export function createWriter(deps: WriterDeps) {
 				return [`The panel could not be repainted: ${(error as Error).message}. Run /todos refresh.`];
 			}
 		};
-		const after = await provider.refresh(sessionId, { signal });
+		const after = await provider.refresh(sessionId, { signal, isCurrent: options.isCurrent });
+		if (!current()) {
+			// Report against the original binding; publish nothing and block nothing on the new one.
+			return {
+				kind: "persisted-view-unavailable",
+				message: `The checkbox for task #${localId} was written to ${snap.file}, but the session's binding changed, so the result was not confirmed or shown. The binding changed before this completion could be confirmed.`,
+				action: "Check tasks.md. Do not repeat the completion.",
+				snapshot: view(),
+			};
+		}
 		if (after.freshness !== "fresh") {
 			provider.blockWrites(sessionId, "A completion was written but the view could not be refreshed.");
 			const warnings = await repaint(view());

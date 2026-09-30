@@ -13,10 +13,12 @@
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { getPreferences } from "./preferences.js";
+import { getSessionMode } from "./session-mode.js";
 import { formatStatusLabel, t } from "./state/labels.js";
 import { selectTasksByStatus, selectTodoCounts, selectVisibleTasks } from "./state/selectors.js";
 import { applyTaskMutation } from "./state/state-reducer.js";
-import { commitState, getRenderState, getState, sid } from "./state/store.js";
+import type { TaskState } from "./state/state.js";
+import { commitState, getActiveRenderSession, getRenderState, getState, sid } from "./state/store.js";
 import { buildToolResult } from "./tool/response-envelope.js";
 import {
 	COMMAND_NAME,
@@ -27,6 +29,9 @@ import {
 	TOOL_NAME,
 	TodoParamsSchema,
 } from "./tool/types.js";
+import type { Runtime } from "./sync/runtime.js";
+import { executeSyncTodo } from "./sync/tool.js";
+import { describeSnapshot, linkedToTask } from "./sync/text.js";
 import { formatCommandTaskLine, renderTodoCall, renderTodoResult } from "./view/format.js";
 
 // English fallbacks for localized /todos section headers — the box-drawing
@@ -61,20 +66,41 @@ export const DEFAULT_PROMPT_GUIDELINES: string[] = [
 	"Use blockedBy to express dependencies (A is blocked by B). On create, pass blockedBy as the initial set. On update, use addBlockedBy / removeBlockedBy (additive merge — do not resend the full array). Cycles are rejected.",
 	"list hides tombstoned (deleted) tasks by default; pass includeDeleted:true to see them. Pass status to filter by a single status.",
 	"Subject must be short and imperative (e.g. 'Research existing tool'); description is for long-form detail. activeForm is a present-continuous label shown while in_progress.",
+	"Update a task the moment its state changes. Set waitingReason as soon as you wait for someone, such as an approval or a review, and failureReason as soon as work failed or hit an error. Clear each with an empty string once it is resolved. Never leave a task in_progress without saying what it waits for.",
+	"In OpenSpec sync mode, list shows the tasks imported from tasks.md. Do the plan's work under those ids, and never paraphrase a plan task into a new one. To change a linked task's status pass expectedRevision, the revision shown by the latest list, get or result. Complete a linked task the moment its acceptance criteria are met; completing a linked task checks its box in tasks.md.",
+	'In OpenSpec sync mode, use scope "incidental" with a reason only for a temporary step outside the plan. Incidental tasks never count as OpenSpec progress. Linked wording cannot be changed or deleted here; revise the OpenSpec plan instead.',
+	"A checked box records progress; it is not proof that tests passed or that the work was verified. Report what you ran and what it showed, and do not claim more than that.",
 ];
 
-export function registerTodoTool(pi: ExtensionAPI): void {
+/**
+ * The list a call label looks ids up in. A linked id in a sync session names a task
+ * from tasks.md; everything else names one of the session's own tasks.
+ */
+function callLookupState(runtime: Runtime | undefined, scope: string | undefined): TaskState {
+	const id = getActiveRenderSession();
+	if (runtime && scope !== "incidental" && getSessionMode(id).mode === "openspec") {
+		const snapshot = runtime.provider.getSnapshot(id);
+		return { tasks: snapshot.linked.map(linkedToTask), nextId: snapshot.linkedNextId };
+	}
+	return getRenderState();
+}
+
+/** Register the `todo` tool. Without a runtime the tool only ever runs in normal mode. */
+export function registerTodoTool(pi: ExtensionAPI, runtime?: Runtime): void {
 	const guidance = getPreferences().guidance ?? {};
 	pi.registerTool({
 		name: TOOL_NAME,
 		label: TOOL_LABEL,
 		description:
-			"Manage a task list for tracking multi-step progress. Actions: create (new task), update (change status/fields/dependencies), list (all tasks, optionally filtered by status), get (single task details), delete (tombstone), clear (reset all). Status: pending → in_progress → completed, plus deleted tombstone. Use this to plan and track multi-step work like research, design, and implementation.",
+			"Manage a task list for tracking multi-step progress. Actions: create (new task), update (change status/fields/dependencies), list (all tasks, optionally filtered by status), get (single task details), delete (tombstone), clear (reset all). Status: pending → in_progress → completed, plus deleted tombstone. Use this to plan and track multi-step work like research, design, and implementation. In OpenSpec sync mode the list holds tasks imported from tasks.md; pass scope \"incidental\" to address your own temporary tasks instead.",
 		promptSnippet: guidance.promptSnippet ?? DEFAULT_PROMPT_SNIPPET,
 		promptGuidelines: guidance.promptGuidelines ?? DEFAULT_PROMPT_GUIDELINES,
 		parameters: TodoParamsSchema,
 
-		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+			if (runtime && getSessionMode(sid(ctx)).mode === "openspec") {
+				return executeSyncTodo(runtime, sid(ctx), params.action, params as TaskMutationParams, signal);
+			}
 			const result = applyTaskMutation(getState(sid(ctx)), params.action, params as TaskMutationParams);
 			commitState(sid(ctx), result.state);
 			return buildToolResult(params.action, params as TaskMutationParams, result.state, result.op);
@@ -89,7 +115,7 @@ export function registerTodoTool(pi: ExtensionAPI): void {
 		// safe outcome: per-session ids restart at 1, so searching sibling slots could
 		// surface the WRONG subject — the `#<id>` fallback is intentional, not a gap.
 		renderCall(args, theme, _context) {
-			return renderTodoCall(args as never, theme, getRenderState());
+			return renderTodoCall(args as never, theme, callLookupState(runtime, args.scope));
 		},
 
 		renderResult(result, _opts, theme, _context) {
@@ -102,12 +128,17 @@ export function registerTodoTool(pi: ExtensionAPI): void {
 // /todos slash command
 // ---------------------------------------------------------------------------
 
-export function registerTodosCommand(pi: ExtensionAPI): void {
+export function registerTodosCommand(pi: ExtensionAPI, runtime?: Runtime): void {
 	pi.registerCommand(COMMAND_NAME, {
 		description: "Show all todos on the current branch, grouped by status",
 		handler: async (_args, ctx) => {
 			if (!ctx.hasUI) {
 				ctx.ui.notify(t("command.requires_interactive", ERR_REQUIRES_INTERACTIVE), "error");
+				return;
+			}
+			if (runtime && getSessionMode(sid(ctx)).mode === "openspec") {
+				const snapshot = await runtime.refresh(sid(ctx));
+				ctx.ui.notify(describeSnapshot(snapshot).join("\n"), "info");
 				return;
 			}
 			const state = getState(sid(ctx));

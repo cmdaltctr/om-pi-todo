@@ -12,7 +12,9 @@ import type { Task, TaskAction, TaskDetails, TaskMutationParams } from "./types.
 function formatListLine(t: Task): string {
 	const block = t.blockedBy?.length ? ` ⛓ ${t.blockedBy.map((id) => `#${id}`).join(",")}` : "";
 	const form = t.status === "in_progress" && t.activeForm ? ` (${sanitizeTerminalText(t.activeForm)})` : "";
-	return `[${t.status}] #${t.id} ${sanitizeTerminalText(t.subject)}${form}${block}`;
+	const waiting = t.waitingReason ? ` (waiting: ${sanitizeTerminalText(t.waitingReason)})` : "";
+	const failed = t.failureReason ? ` (failed: ${sanitizeTerminalText(t.failureReason)})` : "";
+	return `[${t.status}] #${t.id} ${sanitizeTerminalText(t.subject)}${form}${waiting}${failed}${block}`;
 }
 
 /**
@@ -32,6 +34,8 @@ function formatGetLines(task: Task, state: TaskState): string {
 		lines.push(`  blocks: ${blocks.map((id) => `#${id}`).join(", ")}`);
 	}
 	if (task.owner) lines.push(`  owner: ${sanitizeTerminalText(task.owner)}`);
+	if (task.waitingReason) lines.push(`  waiting: ${sanitizeTerminalText(task.waitingReason)}`);
+	if (task.failureReason) lines.push(`  failed: ${sanitizeTerminalText(task.failureReason)}`);
 	return lines.join("\n");
 }
 

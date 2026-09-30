@@ -14,12 +14,14 @@ import type { ChangeDiscovery } from "./discovery.js";
 import { createDiscovery } from "./openspec/discover.js";
 import { refreshPreferences, resolveCollapseKey } from "./preferences.js";
 import { registerTodoSettingsCommand } from "./settings.js";
+import { createRuntime, type RuntimeDeps } from "./sync/runtime.js";
 import { evictSessionMode, getSessionMode, replaySessionMode, setSessionMode } from "./session-mode.js";
 import { replayFromBranch } from "./state/replay.js";
 import {
 	clearActiveRenderSession,
 	evictSession,
 	getActiveRenderSession,
+	getState,
 	getRenderState,
 	replaceState,
 	setActiveRenderSession,
@@ -102,6 +104,8 @@ export default async function (
 	pi: ExtensionAPI,
 	importOverlay: TodoOverlayImporter = () => import("./todo-overlay.js"),
 	discoverChanges: ChangeDiscovery = createDiscovery(),
+	/** Overrides for the sync runtime. Tests inject a fake CLI and watcher here. */
+	runtimeOverrides: Partial<RuntimeDeps> = {},
 ) {
 	// Fill the preference cache once so later reads (render, tool guidance) do no file access.
 	await refreshPreferences();
@@ -110,25 +114,43 @@ export default async function (
 	let uiCtx: ExtensionUIContext | undefined;
 	let lifecycleGeneration = 0;
 
+	const runtime = createRuntime({
+		getOrdinary: (id) => getState(id).tasks,
+		onRepaint: () => updateTodoOverlay(),
+		onError: (message) => console.warn(`[pi-todo] ${message}`),
+		...runtimeOverrides,
+	});
+
+	/** What the panel shows: the shared OpenSpec snapshot in sync mode, the session list otherwise. */
+	const panelSource = () => {
+		const id = getActiveRenderSession();
+		return getSessionMode(id).mode === "openspec" ? runtime.panelState(id) : getRenderState();
+	};
+
 	async function updateTodoOverlay(
 		resetCompletedDisplayState = false,
 		generation = lifecycleGeneration,
 	): Promise<void> {
-		const hasVisibleTasks = getRenderState().tasks.some((task) => task.status !== "deleted");
+		const hasVisibleTasks = panelSource().tasks.some((task) => task.status !== "deleted");
 		if (!uiCtx || (!todoOverlay && !hasVisibleTasks)) return;
 
 		const { TodoOverlay } = await loadTodoOverlay();
 		if (generation !== lifecycleGeneration || !uiCtx) return;
 
-		todoOverlay ??= new TodoOverlay();
+		todoOverlay ??= new TodoOverlay(panelSource);
 		todoOverlay.setUICtx(uiCtx);
 		if (resetCompletedDisplayState) todoOverlay.resetCompletedDisplayState();
 		todoOverlay.update();
 	}
 
-	registerTodoTool(pi);
-	registerTodosCommand(pi);
-	registerTodoSettingsCommand(pi, discoverChanges);
+	registerTodoTool(pi, runtime);
+	registerTodosCommand(pi, runtime);
+	registerTodoSettingsCommand(pi, discoverChanges, {
+		onModeChanged: async (ctx) => {
+			runtime.start(sid(ctx), ctx);
+			await updateTodoOverlay(true);
+		},
+	});
 
 	// Collapse/expand hotkey for the todo overlay. The key is resolved once at
 	// factory scope from config (register-once contract: a config change needs
@@ -165,6 +187,7 @@ export default async function (
 			const id = sid(ctx);
 			replaceState(id, replayFromBranch(ctx));
 			setSessionMode(id, replaySessionMode(ctx));
+			runtime.start(id, ctx);
 			isForeground = id === getActiveRenderSession();
 		} catch (e) {
 			if (!isStaleCtxError(e)) throw e;
@@ -179,6 +202,7 @@ export default async function (
 			// Every session replays into its OWN data slot (Phase 1 isolation).
 			replaceState(id, replayFromBranch(ctx));
 			setSessionMode(id, replaySessionMode(ctx));
+			runtime.start(id, ctx);
 		} catch (e) {
 			// Parity with compact/tree/shutdown: session_start is the fresh-ctx event
 			// so the stale risk is low, but a stale/throwing ctx has nothing to bind —
@@ -222,6 +246,7 @@ export default async function (
 		// The shutting-down session's own data slot is always evicted.
 		evictSession(s);
 		evictSessionMode(s);
+		runtime.stop(s);
 		// Overlay teardown is sid-gated: a child shutdown (distinct sid) must not
 		// dispose the foreground's overlay. Only the foreground's own shutdown
 		// (or an unknown/stale sid) tears it down and clears the pointer.
