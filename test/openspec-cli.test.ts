@@ -1,8 +1,9 @@
 import { spawnSync } from "node:child_process";
-import { realpathSync, writeFileSync } from "node:fs";
+import { readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { afterAll, describe, expect, it } from "vitest";
 import { createDiscovery } from "../src/openspec/discover.js";
 import { createSnapshotProvider } from "../src/openspec/snapshot.js";
+import { createWriter } from "../src/openspec/writer.js";
 import type { SessionMode } from "../src/session-mode.js";
 import { createOpenspecRoot } from "./fixtures.js";
 
@@ -56,4 +57,28 @@ describe.skipIf(!HAS_CLI)("discovery and snapshot against the installed OpenSpec
 		const gone = await provider.refresh("s1");
 		expect(gone).toMatchObject({ freshness: "stale", writable: false, needsReselect: true });
 	});
+
+	it("completes a task through the writer and the CLI independently agrees", async () => {
+		const original = "# Tasks\r\n- [x] 1.1 Done\r\n- [ ] 1.2 Target\r\n- [~] 1.3 Started\r\n- [ ]\r\n";
+		const { tasksPath } = fixture.addChange("writes", original);
+		const mode: SessionMode = { mode: "openspec", binding: { root: root(), change: "writes" } };
+		const provider = createSnapshotProvider({}, { getMode: () => mode, getOrdinary: () => [] });
+		const writer = createWriter({ provider });
+
+		const view = await provider.refresh("s1");
+		const target = view.linked.find((r) => r.description === "1.2 Target")!;
+		const outcome = await writer.complete("s1", target.id, view.revision!);
+		expect(outcome).toMatchObject({ kind: "completed", changed: true });
+		expect(readFileSync(tasksPath, "utf-8")).toBe(original.replace("[ ] 1.2 Target", "[x] 1.2 Target"));
+
+		const cli = spawnSync("openspec", ["instructions", "apply", "--change", "writes", "--json"], { cwd: fixture.root, encoding: "utf-8" });
+		const apply = JSON.parse(cli.stdout);
+		expect(apply.tasks.map((t: any) => [t.description, t.done])).toEqual([["1.1 Done", true], ["1.2 Target", true], ["1.3 Started", false]]);
+		expect(apply.progress).toMatchObject({ total: 4, complete: 2 });
+
+		// A second attempt is a no-op, and a stale revision is refused.
+		const again = await provider.refresh("s1");
+		expect(await writer.complete("s1", target.id, again.revision!)).toMatchObject({ kind: "completed", changed: false });
+		expect(await writer.complete("s1", target.id, view.revision!)).toMatchObject({ kind: "rejected", code: "stale-revision" });
+	}, 60_000);
 });

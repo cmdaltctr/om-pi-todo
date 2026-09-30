@@ -45,6 +45,8 @@ export interface Snapshot {
 	ordinaryCounts: TodoCounts;
 	revision?: string;
 	file?: string;
+	/** The change's directory, as the CLI reports it. */
+	changeRoot?: string;
 	schema?: string;
 	notes: string[];
 	diagnostics: string[];
@@ -70,6 +72,7 @@ interface Committed {
 	rows: LinkedRow[];
 	revision?: string;
 	file?: string;
+	changeRoot?: string;
 	schema?: string;
 	notes: string[];
 	diagnostics: string[];
@@ -80,6 +83,8 @@ interface Slot {
 	committedSeq: number;
 	committed?: Committed;
 	nextId: number;
+	/** Set when a completion could not be confirmed; cleared by a later successful refresh. */
+	block?: { reason: string; seq: number };
 }
 
 const MAX_ATTEMPTS = 3;
@@ -148,22 +153,24 @@ export function createSnapshotProvider(deps: SnapshotDeps, sources: SnapshotSour
 		if (!mode.binding) return { ...base, freshness: "unbound", needsReselect: true, diagnostics: ["OpenSpec sync is selected but no change is chosen. Run /todo-settings to choose one."] };
 
 		const committed = slots.get(sessionId)?.committed;
+		const block = slots.get(sessionId)?.block;
 		const sameBinding = committed && committed.binding.root === mode.binding.root && committed.binding.change === mode.binding.change;
 		if (!committed || !sameBinding) return { ...base, binding: mode.binding, freshness: "unavailable", diagnostics: ["The OpenSpec view has not been read yet."] };
 		return {
 			...base,
 			binding: mode.binding,
 			freshness: committed.freshness,
-			writable: committed.writable,
+			writable: committed.writable && !block,
 			needsReselect: committed.needsReselect,
 			planning: committed.planning,
 			implementation: committed.implementation,
 			linked: committed.rows,
 			revision: committed.revision,
 			file: committed.file,
+			changeRoot: committed.changeRoot,
 			schema: committed.schema,
 			notes: committed.notes,
-			diagnostics: committed.diagnostics,
+			diagnostics: block && !committed.diagnostics.includes(block.reason) ? [...committed.diagnostics, block.reason] : committed.diagnostics,
 		};
 	}
 
@@ -217,6 +224,7 @@ export function createSnapshotProvider(deps: SnapshotDeps, sources: SnapshotSour
 			rows: result.rows,
 			revision: result.revision,
 			file,
+			changeRoot: String(record.changeRoot),
 			schema: String(record.schemaName),
 			notes: view.notes,
 			diagnostics: result.diagnostics,
@@ -254,9 +262,16 @@ export function createSnapshotProvider(deps: SnapshotDeps, sources: SnapshotSour
 						: { binding, freshness: "unavailable", writable: false, needsReselect: outcome.needsReselect, rows: [], notes: [], diagnostics: [outcome.message] };
 				} else {
 					s.committed = outcome;
+					if (s.block && seq > s.block.seq) s.block = undefined;
 				}
 			}
 			return assemble(sessionId);
+		},
+
+		/** Disable writes until a refresh that starts after this call succeeds. */
+		blockWrites(sessionId: string, reason: string): void {
+			const s = slot(sessionId);
+			s.block = { reason, seq: s.started };
 		},
 
 		/** What every view shows right now. Reads no files and starts no process. */

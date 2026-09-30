@@ -376,6 +376,56 @@ describe("overlapping refreshes", () => {
 	});
 });
 
+describe("write blocks", () => {
+	it("exposes the change directory for scope checks", async () => {
+		writeFileSync(tasksPath, md("- [ ] A"));
+		const { provider } = setup();
+		expect((await provider.refresh("s1")).changeRoot).toBe(join(root, "openspec", "changes", "a"));
+	});
+
+	it("disables writes until a refresh that starts after the block succeeds", async () => {
+		writeFileSync(tasksPath, md("- [ ] A"));
+		const { provider } = setup();
+		await provider.refresh("s1");
+		provider.blockWrites("s1", "completion unconfirmed");
+		const blocked = provider.getSnapshot("s1");
+		expect(blocked).toMatchObject({ writable: false, freshness: "fresh" });
+		expect(blocked.diagnostics).toContain("completion unconfirmed");
+		expect((await provider.refresh("s1")).writable).toBe(true);
+		expect(provider.getSnapshot("s1").diagnostics).not.toContain("completion unconfirmed");
+	});
+
+	it("is not cleared by a refresh that started before the block", async () => {
+		writeFileSync(tasksPath, md("- [ ] A"));
+		const { h, provider } = setup();
+		await provider.refresh("s1");
+		let release!: () => void;
+		const gate = new Promise<void>((r) => (release = r));
+		h.apply = async () => {
+			await gate;
+			return ok(await applyJson());
+		};
+		const inFlight = provider.refresh("s1");
+		await new Promise((r) => setTimeout(r, 20));
+		provider.blockWrites("s1", "blocked mid-refresh");
+		release();
+		await inFlight;
+		expect(provider.getSnapshot("s1").writable).toBe(false);
+	});
+
+	it("is not cleared by a failed refresh", async () => {
+		writeFileSync(tasksPath, md("- [ ] A"));
+		const { h, provider } = setup();
+		await provider.refresh("s1");
+		provider.blockWrites("s1", "blocked");
+		h.apply = () => fail("timeout", "timed out");
+		await provider.refresh("s1");
+		h.apply = async () => ok(await applyJson());
+		expect(provider.getSnapshot("s1").writable).toBe(false);
+		expect((await provider.refresh("s1")).writable).toBe(true);
+	});
+});
+
 describe("session isolation", () => {
 	it("keeps separate bindings and rows per session", async () => {
 		writeFileSync(tasksPath, md("- [ ] A"));
