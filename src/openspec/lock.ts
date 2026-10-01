@@ -15,7 +15,7 @@
  */
 
 import { randomBytes, timingSafeEqual } from "node:crypto";
-import { mkdir, open, readFile, unlink } from "node:fs/promises";
+import { open, readFile, unlink } from "node:fs/promises";
 import { hostname } from "node:os";
 import { basename, dirname, join } from "node:path";
 
@@ -210,7 +210,7 @@ export function withTargetLock<T>(target: string, options: LockOptions, section:
 
 	const tail = work.catch(() => undefined);
 	queues.set(target, tail);
-	void tail.then(() => {
+	void tail.finally(() => {
 		if (queues.get(target) === tail) queues.delete(target);
 	});
 

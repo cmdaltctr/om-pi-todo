@@ -158,7 +158,7 @@ export function applyTaskMutation(state: TaskState, action: TaskAction, params: 
 
 			let newMetadata = current.metadata;
 			if (params.metadata !== undefined) {
-				const merged: Record<string, unknown> = { ...(current.metadata ?? {}) };
+				const merged: Record<string, unknown> = { ...current.metadata };
 				for (const [k, v] of Object.entries(params.metadata)) {
 					if (v === null) delete merged[k];
 					else merged[k] = v;

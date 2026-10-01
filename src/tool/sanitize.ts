@@ -1,3 +1,4 @@
+/* oxlint-disable eslint/no-control-regex -- the patterns exist to match terminal control characters */
 /**
  * Remove terminal control characters from model-controlled task text before
  * it reaches Pi's terminal renderer. Complete CSI/OSC escape sequences are

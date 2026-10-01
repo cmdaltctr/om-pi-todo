@@ -158,9 +158,9 @@ export function createWriter(deps: WriterDeps) {
 					return fail(code, patch.reason, REFRESH);
 				}
 
-				const { mode } = await f.stat(real);
+				const { mode: fileMode } = await f.stat(real);
 				staged = `${real}.${process.pid}.${randomBytes(4).toString("hex")}.pi-todo.tmp`;
-				await f.writeStaged(staged, patch.bytes, mode & 0o777);
+				await f.writeStaged(staged, patch.bytes, fileMode & 0o777);
 
 				if (revisionOf(await f.readFile(real)) !== snap.revision) return fail("conflict", "The task file changed while the new version was being staged.", REFRESH);
 				if (signal?.aborted) return fail("write-failed", "Cancelled before the file was replaced.", "Retry when ready.");

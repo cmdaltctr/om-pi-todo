@@ -8,7 +8,7 @@ describe("coalescer", () => {
 	beforeEach(() => vi.useFakeTimers());
 	afterEach(() => vi.useRealTimers());
 
-	function make(run: () => Promise<void> | void, onError = (_: unknown) => undefined) {
+	function make(run: () => Promise<void> | void, onError: (error: unknown) => void = () => undefined) {
 		return createCoalescer(run, { delayMs: 100, onError });
 	}
 

@@ -1,9 +1,11 @@
 import { defineConfig } from "vitest/config";
 
+import { resolve } from "node:path";
+
 // Test-only resolution of Pi host packages. The extension declares them as
 // wildcard peers and never bundles or installs private copies, so tests borrow
-// the copies from the Pi release that runs the extension.
-const HOST = process.env.PI_HOST_MODULES ?? ".pi-host/node_modules";
+// them from `.pi-host/`. Run `scripts/setup-host.sh` to create it.
+const HOST = process.env.PI_HOST_MODULES ?? resolve(__dirname, ".pi-host/node_modules");
 
 export default defineConfig({
 	resolve: {

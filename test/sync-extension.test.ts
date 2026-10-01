@@ -153,7 +153,7 @@ describe("session lifecycle in sync mode", () => {
 
 	it("branch navigation restarts sync from the new branch: a normal branch closes the watcher", async () => {
 		const t = await boot(md("- [ ] A"));
-		const branch: unknown[] = [...[sessionEntry({ mode: "openspec", binding: { root: paths.root, change: "a" } })]];
+		const branch: unknown[] = [sessionEntry({ mode: "openspec", binding: { root: paths.root, change: "a" } })];
 		const ctx = t.session("s1", branch);
 		await t.fire("session_start", ctx);
 		await t.settle();

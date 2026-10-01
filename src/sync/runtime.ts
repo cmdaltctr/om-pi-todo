@@ -168,7 +168,7 @@ export function createRuntime(deps: RuntimeDeps) {
 
 		/** Stop everything for every session. */
 		stopAll(): void {
-			for (const id of [...new Set([...generations.keys(), ...watched.keys()])]) {
+			for (const id of new Set([...generations.keys(), ...watched.keys()])) {
 				generations.set(id, generationOf(id) + 1);
 				teardownWatch(id);
 				provider.forget(id);
@@ -191,7 +191,7 @@ export function createRuntime(deps: RuntimeDeps) {
 		/** Resolves when background work has finished, including coalesced refreshes. */
 		async idle(): Promise<void> {
 			for (let round = 0; round < 10; round++) {
-				await Promise.all([...background]);
+				await Promise.all(background);
 				await Promise.all([...watched.values()].map((w) => w.coalescer.idle()));
 				if (background.size === 0) return;
 			}

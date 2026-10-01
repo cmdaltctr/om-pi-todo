@@ -5,7 +5,7 @@ import { setActiveRenderSession } from "../src/state/store.js";
 import { DEFAULT_PROMPT_GUIDELINES, registerTodoTool } from "../src/todo.js";
 import { renderTodoCall, renderTodoResult } from "../src/view/format.js";
 import { buildSync, md, useSyncRoot } from "./sync-harness.js";
-import { callTool, createCtx, createHost, useCleanEnvironment } from "./helpers.js";
+import { createHost, useCleanEnvironment } from "./helpers.js";
 
 useCleanEnvironment();
 const paths = useSyncRoot();

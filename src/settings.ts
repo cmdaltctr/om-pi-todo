@@ -9,7 +9,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { MIN_WIDGET_LINES } from "./config.js";
 import type { ChangeDiscovery } from "./discovery.js";
-import { getPreferences, normaliseCollapseKey, refreshPreferences, savePreferences, type TodoMode } from "./preferences.js";
+import { getPreferences, normaliseCollapseKey, savePreferences, type TodoMode } from "./preferences.js";
 import { describeSessionMode, getSessionMode, persistSessionMode } from "./session-mode.js";
 import { sid } from "./state/store.js";
 

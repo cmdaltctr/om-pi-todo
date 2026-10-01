@@ -79,7 +79,7 @@ export async function executeSyncTodo(rt: Runtime, sessionId: string, action: Ta
 			const snap = await rt.refresh(sessionId, { signal });
 			const copy = findImportedCopy(params, snap.linked);
 			if (copy) return fail(`This looks like a copy of linked task #${copy.row.id} (${copy.why}). Use #${copy.row.id} for that work. Do not paraphrase plan tasks into incidental ones.`);
-			return incidental({ ...params, metadata: { ...(params.metadata ?? {}), reason } });
+			return incidental({ ...params, metadata: { ...params.metadata, reason } });
 		}
 
 		case "delete": {

@@ -149,7 +149,7 @@ describe("invalid preferences", () => {
 	});
 
 	it("falls back for bad line budgets", async () => {
-		for (const bad of [2, -1, "20", null, 1.5e400, Number.NaN]) {
+		for (const bad of [2, -1, "20", null, Number.POSITIVE_INFINITY, Number.NaN]) {
 			write(preferencesPath(), JSON.stringify({ maxWidgetLines: bad }));
 			expect((await loadPreferences()).preferences.maxWidgetLines).toBe(12);
 		}

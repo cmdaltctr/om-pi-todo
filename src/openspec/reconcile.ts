@@ -148,6 +148,6 @@ export function reconcile(input: ReconcileInput): ReconcileResult {
 		};
 	});
 
-	const removed = previous.filter((r) => !used.has(r.id)).map((r) => r.id).sort((a, b) => a - b);
+	const removed = previous.filter((r) => !used.has(r.id)).map((r) => r.id).toSorted((a, b) => a - b);
 	return { rows, nextId, revision, removed, diagnostics, writable: agree };
 }

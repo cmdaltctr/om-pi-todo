@@ -1,0 +1,8 @@
+#!/usr/bin/env sh
+# Local CI gate. Runs the same steps as .github/workflows/ci.yml.
+# Skip once with: git push --no-verify
+set -e
+
+echo "pre-push: running local CI (lint, types, tests)"
+./scripts/setup-host.sh
+bun run ci

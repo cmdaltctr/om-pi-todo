@@ -9,9 +9,9 @@
     "allowImportingTsExtensions": true,
     "types": ["node"],
     "paths": {
-      "typebox": [".pi-host/node_modules/typebox/build/index.d.mts"],
-      "typebox/*": [".pi-host/node_modules/typebox/build/*"],
-      "@earendil-works/*": [".pi-host/node_modules/@earendil-works/*"]
+      "typebox": ["./.pi-host/node_modules/typebox/build/index.d.mts"],
+      "typebox/*": ["./.pi-host/node_modules/typebox/build/*"],
+      "@earendil-works/*": ["./.pi-host/node_modules/@earendil-works/*"]
     }
   },
   "include": ["src", "test", "vitest.config.ts"]
