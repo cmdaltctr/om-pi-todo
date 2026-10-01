@@ -129,6 +129,145 @@ describe("coalescer", () => {
 
 // Real file-system events can arrive late on a busy machine. The wait inside each test is 10 s,
 // so the test timeout must be longer than that, or the wait can never help.
+/** A fake `fs.watch` that records every watcher, so tests can fire events and failures by hand. */
+function fakeWatch() {
+	const watchers: Array<{
+		path: string;
+		closed: boolean;
+		fire: (event: string, name: string | null) => void;
+		/** Deliver an event even after close, as a platform can for an event already queued. */
+		late: (event: string, name: string | null) => void;
+		fail: (error: Error) => void;
+	}> = [];
+	const impl = ((path: string, _options: unknown, listener: (event: string, name: string | null) => void) => {
+		const handlers: Array<(e: unknown) => void> = [];
+		const w = {
+			path,
+			closed: false,
+			fire: (event: string, name: string | null) => {
+				if (!w.closed) listener(event, name);
+			},
+			late: (event: string, name: string | null) => listener(event, name),
+			fail: (error: Error) => handlers.forEach((h) => h(error)),
+		};
+		watchers.push(w);
+		return { close: () => void (w.closed = true), on: (_: string, h: (e: unknown) => void) => void handlers.push(h) };
+	}) as never;
+	return { watchers, impl };
+}
+
+describe("watching the file's folder and its parent", () => {
+	const FILE = "/r/openspec/changes/a/tasks.md";
+
+	it("watches the folder that holds the file, and that folder's parent", () => {
+		const { watchers, impl } = fakeWatch();
+		watchTarget(FILE, () => undefined, { watchImpl: impl });
+		expect(watchers.map((w) => w.path)).toEqual(["/r/openspec/changes/a", "/r/openspec/changes"]);
+	});
+
+	it("reports an event in the folder that names the file, and ignores other names", () => {
+		const { watchers, impl } = fakeWatch();
+		let events = 0;
+		watchTarget(FILE, () => void events++, { watchImpl: impl });
+		watchers[0].fire("change", "tasks.md");
+		watchers[0].fire("rename", "tasks.md");
+		expect(events).toBe(2);
+		watchers[0].fire("change", "other.md");
+		watchers[0].fire("rename", "tasks.md.pi-todo.lock");
+		expect(events).toBe(2);
+	});
+
+	it("reports the change folder being renamed or removed, seen from its parent", () => {
+		const { watchers, impl } = fakeWatch();
+		let events = 0;
+		watchTarget(FILE, () => void events++, { watchImpl: impl });
+		watchers[1].fire("rename", "a");
+		expect(events).toBe(1);
+	});
+
+	it("ignores a sibling change in the parent folder, and edits inside the parent that are not renames", () => {
+		const { watchers, impl } = fakeWatch();
+		let events = 0;
+		watchTarget(FILE, () => void events++, { watchImpl: impl });
+		watchers[1].fire("rename", "another-change");
+		watchers[1].fire("change", "a");
+		expect(events).toBe(0);
+	});
+
+	it("reports when the platform does not say what changed, in either watcher", () => {
+		const { watchers, impl } = fakeWatch();
+		let events = 0;
+		watchTarget(FILE, () => void events++, { watchImpl: impl });
+		watchers[0].fire("rename", null);
+		watchers[1].fire("rename", null);
+		expect(events).toBe(2);
+	});
+
+	it("closes both watchers, once, and reports nothing afterwards", () => {
+		const { watchers, impl } = fakeWatch();
+		let events = 0;
+		const w = watchTarget(FILE, () => void events++, { watchImpl: impl });
+		w.close();
+		w.close();
+		expect(watchers.every((x) => x.closed)).toBe(true);
+		watchers[0].fire("change", "tasks.md");
+		watchers[1].fire("rename", "a");
+		expect(events).toBe(0);
+	});
+
+	it("ignores an event the platform delivers after close, in both watchers and with no name", () => {
+		const { watchers, impl } = fakeWatch();
+		let events = 0;
+		watchTarget(FILE, () => void events++, { watchImpl: impl }).close();
+		watchers[0].late("change", "tasks.md");
+		watchers[0].late("rename", null);
+		watchers[1].late("rename", "a");
+		watchers[1].late("rename", null);
+		expect(events).toBe(0);
+	});
+
+	it("a failing parent watcher is reported, and the folder watcher keeps working", () => {
+		const { watchers, impl } = fakeWatch();
+		const errors: string[] = [];
+		let events = 0;
+		watchTarget(FILE, () => void events++, { watchImpl: impl, onError: (e) => errors.push(String(e)) });
+		watchers[1].fail(new Error("EMFILE"));
+		expect(errors).toEqual(["Error: EMFILE"]);
+		expect(watchers[1].closed).toBe(true);
+		expect(watchers[0].closed).toBe(false);
+		watchers[0].fire("change", "tasks.md");
+		expect(events).toBe(1);
+	});
+
+	it("a failing folder watcher is reported and stops everything, as before", () => {
+		const { watchers, impl } = fakeWatch();
+		const errors: string[] = [];
+		watchTarget(FILE, () => undefined, { watchImpl: impl, onError: (e) => errors.push(String(e)) });
+		watchers[0].fail(new Error("EBADF"));
+		expect(errors).toEqual(["Error: EBADF"]);
+		expect(watchers.every((w) => w.closed)).toBe(true);
+	});
+
+	it("a parent that cannot be watched does not stop the folder watcher", () => {
+		const { watchers, impl } = fakeWatch();
+		const errors: string[] = [];
+		const flaky = ((path: string, o: unknown, l: never) => {
+			if (path === "/r/openspec/changes") throw new Error("ENOENT");
+			return (impl as unknown as (p: string, o: unknown, l: never) => unknown)(path, o, l);
+		}) as never;
+		watchTarget(FILE, () => undefined, { watchImpl: flaky, onError: (e) => errors.push(String(e)) });
+		expect(errors).toEqual(["Error: ENOENT"]);
+		expect(watchers.map((w) => w.path)).toEqual(["/r/openspec/changes/a"]);
+		expect(watchers[0].closed).toBe(false);
+	});
+
+	it("a file at the root of the file system has no parent to watch", () => {
+		const { watchers, impl } = fakeWatch();
+		watchTarget("/tasks.md", () => undefined, { watchImpl: impl });
+		expect(watchers.map((w) => w.path)).toEqual(["/"]);
+	});
+});
+
 describe("file watcher", { timeout: 30_000 }, () => {
 	let dir = "";
 	let file = "";
