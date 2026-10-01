@@ -177,9 +177,11 @@ describe("the release workflow", () => {
 		expect(releaseJob).toContain("if: ${{ vars.RELEASE_PLEASE_ENABLED == 'true' }}");
 	});
 
-	it("uses the built-in workflow token, so no GitHub App or private key is needed", () => {
-		expect(releaseJob).toContain("token: ${{ github.token }}");
-		expect(workflow).not.toMatch(/create-github-app-token|RELEASE_APP_ID|RELEASE_APP_PRIVATE_KEY|private-key/);
+	it("signs in as the release GitHub App, so release pull requests start the CI checks", () => {
+		expect(releaseJob).toContain("actions/create-github-app-token@");
+		expect(releaseJob).toContain("client-id: ${{ secrets.RELEASE_APP_ID }}");
+		expect(releaseJob).toContain("private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}");
+		expect(releaseJob).toContain("token: ${{ steps.app-token.outputs.token }}");
 	});
 
 	it("uses no npm token anywhere", () => {
@@ -189,11 +191,9 @@ describe("the release workflow", () => {
 
 	it("gives each job only the permissions it needs, and none for the whole workflow", () => {
 		expect(workflow).toMatch(/^permissions:\s*\n\s+contents: read\s*$/m);
-		// The release job opens the pull request and tags, with the built-in token.
-		expect(releaseJob).toContain("contents: write");
-		expect(releaseJob).toContain("pull-requests: write");
+		expect(releaseJob).not.toMatch(/write/);
 		expect(releaseJob).not.toContain("id-token");
-		expect(publishJob).toContain("contents: write"); // add the approval note to the GitHub release
+		expect(publishJob).toContain("contents: write"); // to add the approval note to the GitHub Release
 		expect(publishJob).toContain("id-token: write"); // npm trusted publishing (OIDC)
 		expect(publishJob).not.toMatch(/pull-requests|packages: write|actions: write/);
 	});
