@@ -26,6 +26,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 /** True when `child` is strictly inside `parent` after normalising both. */
 export function isInside(parent: string, child: string): boolean {
 	if (!isAbsolute(parent) || !isAbsolute(child)) return false;
+	// nosemgrep: AIK_ts_generic_path_traversal -- path is resolved and checked inside the confirmed OpenSpec root (see docs/VERIFICATION.md)
 	const rel = relative(resolve(parent), resolve(child));
 	return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
 }

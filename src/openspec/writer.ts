@@ -40,10 +40,13 @@ export interface WriterFs {
 
 export const defaultFs: WriterFs = {
 	realpath: (path) => realpath(path),
+	// nosemgrep: AIK_ts_generic_path_traversal -- path is resolved and checked inside the confirmed OpenSpec root (see docs/VERIFICATION.md)
 	readFile: (path) => readFile(path),
 	stat: (path) => stat(path),
+	// nosemgrep: AIK_ts_generic_path_traversal -- path is resolved and checked inside the confirmed OpenSpec root (see docs/VERIFICATION.md)
 	access: (path) => access(path, constants.W_OK),
 	async writeStaged(path, bytes, mode) {
+		// nosemgrep: AIK_ts_generic_path_traversal -- path is resolved and checked inside the confirmed OpenSpec root (see docs/VERIFICATION.md)
 		const handle = await open(path, "wx", mode);
 		try {
 			await handle.writeFile(bytes);
@@ -180,6 +183,7 @@ export function createWriter(deps: WriterDeps) {
 			return reject("unsafe-path", `The task file path could not be resolved: ${(error as Error).message}`, REFRESH);
 		}
 		try {
+			// nosemgrep: AIK_ts_generic_path_traversal -- path is resolved and checked inside the confirmed OpenSpec root (see docs/VERIFICATION.md)
 			await io.access(real);
 		} catch (error) {
 			return reject(
@@ -199,6 +203,7 @@ export function createWriter(deps: WriterDeps) {
 			});
 			let staged: string | undefined;
 			try {
+				// nosemgrep: AIK_ts_generic_path_traversal -- path is resolved and checked inside the confirmed OpenSpec root (see docs/VERIFICATION.md)
 				const bytes = await f.readFile(real);
 				if (revisionOf(bytes) !== snap.revision)
 					return fail("conflict", "The task file changed while the write was waiting.", REFRESH);
@@ -214,6 +219,7 @@ export function createWriter(deps: WriterDeps) {
 				staged = `${real}.${process.pid}.${randomBytes(4).toString("hex")}.pi-todo.tmp`;
 				await f.writeStaged(staged, patch.bytes, fileMode & 0o777);
 
+				// nosemgrep: AIK_ts_generic_path_traversal -- path is resolved and checked inside the confirmed OpenSpec root (see docs/VERIFICATION.md)
 				if (revisionOf(await f.readFile(real)) !== snap.revision)
 					return fail("conflict", "The task file changed while the new version was being staged.", REFRESH);
 				if (signal?.aborted)

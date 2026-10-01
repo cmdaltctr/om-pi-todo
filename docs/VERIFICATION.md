@@ -20,14 +20,14 @@ Run `bun run ci` to repeat the first three checks. GitHub Actions runs them on e
 
 ## Security findings
 
-The scan found one real issue. It also reports 16 findings of one type that I judge to be false alarms.
+The scan found one real issue. It also reported 16 findings of one type, which are false alarms. Those are now suppressed in the code with an inline comment. The last scan reports no issues.
 
-| Finding                                                                     | Count | Verdict                                                    | Action                                             |
-| --------------------------------------------------------------------------- | ----: | ---------------------------------------------------------- | -------------------------------------------------- |
-| Token compared with `!==` in the lock release (`AIK_ts_node_timing_attack`) |     1 | Real pattern. Low risk, because the token is not a secret. | Fixed. The code now uses `crypto.timingSafeEqual`. |
-| File access with a path variable (`AIK_ts_generic_path_traversal`)          |    16 | False alarms. Every path is contained.                     | Not suppressed in Aikido. The owner decides.       |
+| Finding                                                                     | Count | Verdict                                                    | Action                                                                             |
+| --------------------------------------------------------------------------- | ----: | ---------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Token compared with `!==` in the lock release (`AIK_ts_node_timing_attack`) |     1 | Real pattern. Low risk, because the token is not a secret. | Fixed. The code now uses `crypto.timingSafeEqual`.                                 |
+| File access with a path variable (`AIK_ts_generic_path_traversal`)          |    16 | False alarms. Every path is contained.                     | Suppressed inline with `// nosemgrep: AIK_ts_generic_path_traversal` and a reason. |
 
-Why the path findings are false alarms:
+Why the path findings are false alarms. Each suppressed line carries a comment that points here:
 
 - **Writes to a task file.** The file and its folder are resolved with `realpath`. Both must be inside the confirmed OpenSpec root. A link that leaves the root is refused. Tests cover a file link and a folder link.
 - **Lock and temporary files.** They sit beside the real task file. They are created with the `wx` flag, so the open fails if the name already exists.

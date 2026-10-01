@@ -162,6 +162,7 @@ function parseApply(json: unknown, bindingRoot: string): ApplyView | Failure {
 
 export function createSnapshotProvider(deps: SnapshotDeps, sources: SnapshotSources) {
 	const run: Run = deps.run ?? runOpenspecJson;
+	// nosemgrep: AIK_ts_generic_path_traversal -- path is resolved and checked inside the confirmed OpenSpec root (see docs/VERIFICATION.md)
 	const readFile = deps.readFile ?? ((path: string) => fsReadFile(path));
 	const realpath = deps.realpath ?? ((path: string) => fsRealpath(path));
 	const slots = new Map<string, Slot>();
@@ -271,6 +272,7 @@ export function createSnapshotProvider(deps: SnapshotDeps, sources: SnapshotSour
 
 		let before: Buffer;
 		try {
+			// nosemgrep: AIK_ts_generic_path_traversal -- path is resolved and checked inside the confirmed OpenSpec root (see docs/VERIFICATION.md)
 			before = await readFile(file);
 		} catch (error) {
 			return new Failure(`The task file could not be read: ${(error as Error).message}`);
@@ -281,6 +283,7 @@ export function createSnapshotProvider(deps: SnapshotDeps, sources: SnapshotSour
 		if (view instanceof Failure) return view;
 		let after: Buffer;
 		try {
+			// nosemgrep: AIK_ts_generic_path_traversal -- path is resolved and checked inside the confirmed OpenSpec root (see docs/VERIFICATION.md)
 			after = await readFile(file);
 		} catch (error) {
 			return new Failure(`The task file could not be read: ${(error as Error).message}`);
