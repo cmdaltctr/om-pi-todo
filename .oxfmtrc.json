@@ -9,6 +9,7 @@
 		"graphify-out/**",
 		"docs/local-docs/**",
 		"bun.lock",
+		"CHANGELOG.md",
 		"NOTICE.md",
 		"LICENSE"
 	]
