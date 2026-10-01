@@ -8,7 +8,12 @@ export interface DiscoveredChange {
 }
 
 export type Discovery =
-	| { ok: true; root: string; /** How the CLI chose the root: nearest, declared, store, and so on. */ rootSource?: string; changes: DiscoveredChange[] }
+	| {
+			ok: true;
+			root: string;
+			/** How the CLI chose the root: nearest, declared, store, and so on. */ rootSource?: string;
+			changes: DiscoveredChange[];
+	  }
 	| { ok: false; error: string };
 
 /** Resolve the planning root and changes visible from `cwd`. Never throws. */

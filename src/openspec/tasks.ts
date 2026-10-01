@@ -83,7 +83,12 @@ export function listTasks(scanned: readonly ScannedTask[]): ListedTask[] {
 	for (const task of scanned) {
 		if (task.description === "") continue;
 		const label = labelOf(task.description);
-		listed.push({ ...task, rowId: String(listed.length + 1), ...(label ? { label } : {}), fingerprint: fingerprint(task.description) });
+		listed.push({
+			...task,
+			rowId: String(listed.length + 1),
+			...(label ? { label } : {}),
+			fingerprint: fingerprint(task.description),
+		});
 	}
 	return listed;
 }

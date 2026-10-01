@@ -57,7 +57,7 @@ Pi supplies these host packages. The extension lists them as peers and ships no 
 ```sh
 bun install
 bun run setup:host   # fetches the Pi host packages into .pi-host/
-bun run ci           # lint, type check and tests
+bun run ci           # format check, lint, type check and tests
 ```
 
 - `bun run ci` checks your working folder. `bun run ci:clean` checks a fresh clone of your last commit, which is what CI sees.

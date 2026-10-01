@@ -9,7 +9,12 @@ import { callTool, useCleanEnvironment } from "./helpers.js";
 useCleanEnvironment();
 const paths = useSyncRoot();
 const make = (content: string, over = {}, ids = ["s1"]) => buildSync(paths, content, over, ids);
-const branch = (...details: unknown[]) => ({ sessionManager: { getBranch: () => details.map((d) => ({ type: "message", message: { role: "toolResult", toolName: "todo", details: d } })) } });
+const branch = (...details: unknown[]) => ({
+	sessionManager: {
+		getBranch: () =>
+			details.map((d) => ({ type: "message", message: { role: "toolResult", toolName: "todo", details: d } })),
+	},
+});
 const applyCalls = (t: ReturnType<typeof make>) => t.cli.calls.filter((c) => c.args[0] === "instructions").length;
 const openWatches = (t: ReturnType<typeof make>) => t.watches.filter((w) => !w.closed);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -40,8 +45,16 @@ describe("starting sync for a session", () => {
 	it("restores ids and activity saved for this binding, and ignores a block saved for another change", async () => {
 		const t = make(md("- [ ] A", "- [ ] B"));
 		const binding = { root: paths.root, change: "a" };
-		const saved = { binding, nextId: 20, rows: [{ id: 5, fingerprint: fingerprint("B"), activity: { status: "in_progress", activeForm: "b" } }] };
-		const other = { binding: { root: paths.root, change: "other" }, nextId: 99, rows: [{ id: 50, fingerprint: fingerprint("A") }] };
+		const saved = {
+			binding,
+			nextId: 20,
+			rows: [{ id: 5, fingerprint: fingerprint("B"), activity: { status: "in_progress", activeForm: "b" } }],
+		};
+		const other = {
+			binding: { root: paths.root, change: "other" },
+			nextId: 99,
+			rows: [{ id: 50, fingerprint: fingerprint("A") }],
+		};
 		t.runtime.start("s1", branch({ tasks: [], nextId: 1, linked: saved }, { tasks: [], nextId: 1, linked: other }));
 		await t.runtime.idle();
 		const snap = t.runtime.provider.getSnapshot("s1");
@@ -62,7 +75,14 @@ describe("starting sync for a session", () => {
 	it("rejects a saved id of zero, which could never have been handed out", async () => {
 		const t = make(md("- [ ] A"));
 		const binding = { root: paths.root, change: "a" };
-		t.runtime.start("s1", branch({ tasks: [], nextId: 1, linked: { binding, nextId: 1, rows: [{ id: 0, fingerprint: fingerprint("A") }] } }));
+		t.runtime.start(
+			"s1",
+			branch({
+				tasks: [],
+				nextId: 1,
+				linked: { binding, nextId: 1, rows: [{ id: 0, fingerprint: fingerprint("A") }] },
+			}),
+		);
 		await t.runtime.idle();
 		expect(t.runtime.provider.getSnapshot("s1").linked.map((r) => r.id)).toEqual([1]);
 	});
@@ -70,7 +90,15 @@ describe("starting sync for a session", () => {
 	it("ignores malformed saved data", async () => {
 		const t = make(md("- [ ] A"));
 		const binding = { root: paths.root, change: "a" };
-		for (const bad of [null, "x", { binding }, { binding, nextId: 1, rows: "no" }, { binding, nextId: 1, rows: [{ id: 0, fingerprint: "x" }] }, { binding, nextId: 1, rows: [{ id: 1 }] }, { binding: { root: 1, change: "a" }, nextId: 1, rows: [] }]) {
+		for (const bad of [
+			null,
+			"x",
+			{ binding },
+			{ binding, nextId: 1, rows: "no" },
+			{ binding, nextId: 1, rows: [{ id: 0, fingerprint: "x" }] },
+			{ binding, nextId: 1, rows: [{ id: 1 }] },
+			{ binding: { root: 1, change: "a" }, nextId: 1, rows: [] },
+		]) {
 			t.runtime.start("s1", branch({ tasks: [], nextId: 1, linked: bad }));
 			await t.runtime.idle();
 			expect(t.runtime.provider.getSnapshot("s1").linked.map((r) => r.id)).toEqual([1]);
@@ -148,11 +176,19 @@ describe("external edits", () => {
 		const t = make(md("- [ ] A"));
 		t.runtime.start("s1", branch());
 		await t.runtime.idle();
-		t.cli.hooks.status = () => ({ ok: false, kind: "exit", message: "OpenSpec exited with code 1: Change 'a' not found" });
+		t.cli.hooks.status = () => ({
+			ok: false,
+			kind: "exit",
+			message: "OpenSpec exited with code 1: Change 'a' not found",
+		});
 		t.watches[0].fire();
 		await sleep(80);
 		await t.runtime.idle();
-		expect(t.runtime.provider.getSnapshot("s1")).toMatchObject({ freshness: "stale", needsReselect: true, writable: false });
+		expect(t.runtime.provider.getSnapshot("s1")).toMatchObject({
+			freshness: "stale",
+			needsReselect: true,
+			writable: false,
+		});
 		expect(openWatches(t)).toEqual([]);
 		expect(t.runtime.watchedSessions()).toEqual([]);
 	});
@@ -172,7 +208,11 @@ describe("external edits", () => {
 	});
 
 	it("reports a repaint failure without breaking the refresh", async () => {
-		const t = make(md("- [ ] A"), { onRepaint: () => { throw new Error("no widget"); } });
+		const t = make(md("- [ ] A"), {
+			onRepaint: () => {
+				throw new Error("no widget");
+			},
+		});
 		t.runtime.start("s1", branch());
 		await t.runtime.idle();
 		expect(t.errors.join(" ")).toContain("could not be repainted: no widget");
@@ -372,7 +412,15 @@ describe("binding generations", () => {
 	it("a completion that landed before the rebind is reported, not published or replayed", async () => {
 		let t!: ReturnType<typeof make>;
 		let repaintsAtRebind = -1;
-		t = make(md("- [ ] A"), { fs: { rename: async (a: string, b: string) => { renameSync(a, b); repaintsAtRebind = t.repaints.length; t.runtime.bump("s1"); } } });
+		t = make(md("- [ ] A"), {
+			fs: {
+				rename: async (a: string, b: string) => {
+					renameSync(a, b);
+					repaintsAtRebind = t.repaints.length;
+					t.runtime.bump("s1");
+				},
+			},
+		});
 		const rev = await t.revision();
 		const r = await callTool(t.host, t.ctx(), { action: "update", id: 1, status: "completed", expectedRevision: rev });
 		expect(r.text).toMatch(/^Error: The checkbox for task #1 was written to .*binding changed/);

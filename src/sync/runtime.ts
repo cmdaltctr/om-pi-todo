@@ -58,7 +58,10 @@ export function createRuntime(deps: RuntimeDeps) {
 	const report = (message: string, kind?: "repaint") => deps.onError?.(message, kind);
 	const watch = deps.watch ?? watchTarget;
 
-	const provider = createSnapshotProvider({ run: deps.run, readFile: deps.readFile }, { getMode: getSessionMode, getOrdinary: deps.getOrdinary });
+	const provider = createSnapshotProvider(
+		{ run: deps.run, readFile: deps.readFile },
+		{ getMode: getSessionMode, getOrdinary: deps.getOrdinary },
+	);
 
 	const generationOf = (sessionId: string) => generations.get(sessionId) ?? 0;
 	const capture = (sessionId: string): Generation => {
@@ -96,17 +99,36 @@ export function createRuntime(deps: RuntimeDeps) {
 	function ensureWatch(sessionId: string, snapshot: Snapshot): void {
 		const mode = getSessionMode(sessionId);
 		const binding = mode.mode === "openspec" ? mode.binding : undefined;
-		if (!binding || !snapshot.file || snapshot.needsReselect || snapshot.freshness === "unbound" || snapshot.freshness === "inactive") return teardownWatch(sessionId);
+		if (
+			!binding ||
+			!snapshot.file ||
+			snapshot.needsReselect ||
+			snapshot.freshness === "unbound" ||
+			snapshot.freshness === "inactive"
+		)
+			return teardownWatch(sessionId);
 		const existing = watched.get(sessionId);
-		if (existing && existing.file === snapshot.file && existing.binding.root === binding.root && existing.binding.change === binding.change) return;
+		if (
+			existing &&
+			existing.file === snapshot.file &&
+			existing.binding.root === binding.root &&
+			existing.binding.change === binding.change
+		)
+			return;
 		teardownWatch(sessionId);
 		const coalescer = createCoalescer(
 			async () => {
 				await refresh(sessionId);
 			},
-			{ delayMs: deps.watchDelayMs ?? DEFAULT_WATCH_DELAY_MS, onError: (error) => report(`Refreshing the OpenSpec view failed: ${(error as Error).message}`) },
+			{
+				delayMs: deps.watchDelayMs ?? DEFAULT_WATCH_DELAY_MS,
+				onError: (error) => report(`Refreshing the OpenSpec view failed: ${(error as Error).message}`),
+			},
 		);
-		const target = watch(snapshot.file, () => coalescer.trigger(), { onError: (error) => report(`Watching ${snapshot.file} failed: ${(error as Error).message}. Run /todos refresh to update.`) });
+		const target = watch(snapshot.file, () => coalescer.trigger(), {
+			onError: (error) =>
+				report(`Watching ${snapshot.file} failed: ${(error as Error).message}. Run /todos refresh to update.`),
+		});
 		watched.set(sessionId, { file: snapshot.file, binding: { ...binding }, coalescer, target });
 	}
 

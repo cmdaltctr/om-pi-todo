@@ -5,7 +5,13 @@ import { listTasks, scanTasks } from "../src/openspec/tasks.js";
 type Hook = (args: readonly string[]) => ExecResult | Promise<ExecResult | undefined> | undefined;
 
 /** JSON shapes of the real CLI, computed from the file on disk at call time. */
-export function makeFakeCli(o: { root: string; change: string; tasksPath: string; changeRoot: string; schema?: string }) {
+export function makeFakeCli(o: {
+	root: string;
+	change: string;
+	tasksPath: string;
+	changeRoot: string;
+	schema?: string;
+}) {
 	const calls: Array<{ args: readonly string[]; cwd: string; signal?: AbortSignal }> = [];
 	const hooks: { status?: Hook; apply?: Hook } = {};
 	const ok = (json: unknown): ExecResult => ({ ok: true, json, stderr: "" });

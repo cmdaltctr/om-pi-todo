@@ -59,9 +59,12 @@ describe("coalescer", () => {
 	it("reports a failing run and keeps working", async () => {
 		const errors: unknown[] = [];
 		let n = 0;
-		const c = make(async () => {
-			if (++n === 1) throw new Error("boom");
-		}, (e) => void errors.push(e));
+		const c = make(
+			async () => {
+				if (++n === 1) throw new Error("boom");
+			},
+			(e) => void errors.push(e),
+		);
 		c.trigger();
 		await vi.advanceTimersByTimeAsync(100);
 		expect(errors).toHaveLength(1);

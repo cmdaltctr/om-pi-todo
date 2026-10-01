@@ -98,17 +98,32 @@ export function createWriter(deps: WriterDeps) {
 	const { provider } = deps;
 	const fs = (): WriterFs => ({ ...defaultFs, ...deps.fs });
 
-	async function complete(sessionId: string, localId: number, expectedRevision: string, options: { signal?: AbortSignal; isCurrent?: () => boolean } = {}): Promise<CompletionOutcome> {
+	async function complete(
+		sessionId: string,
+		localId: number,
+		expectedRevision: string,
+		options: { signal?: AbortSignal; isCurrent?: () => boolean } = {},
+	): Promise<CompletionOutcome> {
 		const { signal } = options;
 		const current = () => options.isCurrent?.() !== false;
 		const MOVED = "The session's binding changed, so this completion was cancelled.";
 		const view = () => provider.getSnapshot(sessionId);
-		const reject = (code: RejectCode, message: string, action: string): CompletionOutcome => ({ kind: "rejected", code, message, action, snapshot: view() });
+		const reject = (code: RejectCode, message: string, action: string): CompletionOutcome => ({
+			kind: "rejected",
+			code,
+			message,
+			action,
+			snapshot: view(),
+		});
 		const cancelled = (message: string): CompletionOutcome => ({ kind: "cancelled", message, snapshot: view() });
 
 		const mode = view();
 		if (mode.freshness === "inactive" || mode.freshness === "unbound" || !mode.binding) {
-			return reject("unbound", "This session is not bound to an OpenSpec change.", "Choose a change with /todo-settings.");
+			return reject(
+				"unbound",
+				"This session is not bound to an OpenSpec change.",
+				"Choose a change with /todo-settings.",
+			);
 		}
 		if (signal?.aborted) return cancelled("Cancelled before the completion started");
 
@@ -116,23 +131,49 @@ export function createWriter(deps: WriterDeps) {
 		if (signal?.aborted) return cancelled("Cancelled while reading the task file");
 		if (!current()) return cancelled(MOVED);
 		if (snap.freshness !== "fresh" || !snap.writable || !snap.file || !snap.changeRoot || !snap.revision) {
-			return reject("not-writable", `Linked tasks cannot be changed now: ${snap.diagnostics.join("; ") || snap.freshness}`, REFRESH);
+			return reject(
+				"not-writable",
+				`Linked tasks cannot be changed now: ${snap.diagnostics.join("; ") || snap.freshness}`,
+				REFRESH,
+			);
 		}
 		if (!expectedRevision || expectedRevision !== snap.revision) {
-			return reject("stale-revision", `The task file changed since you last read it (your revision ${expectedRevision || "missing"}, current ${snap.revision}).`, REFRESH);
+			return reject(
+				"stale-revision",
+				`The task file changed since you last read it (your revision ${expectedRevision || "missing"}, current ${snap.revision}).`,
+				REFRESH,
+			);
 		}
 
 		const row = snap.linked.find((r) => r.id === localId);
-		if (!row) return reject("unknown-task", `Task #${localId} is not in the current OpenSpec task list. It may have been removed or reworded.`, REFRESH);
-		if (!row.mapping.ok) return reject("unmappable", `Task #${localId} cannot be matched to one checkbox: ${row.mapping.reason}`, "Fix tasks.md so the task is unique, then refresh.");
+		if (!row)
+			return reject(
+				"unknown-task",
+				`Task #${localId} is not in the current OpenSpec task list. It may have been removed or reworded.`,
+				REFRESH,
+			);
+		if (!row.mapping.ok)
+			return reject(
+				"unmappable",
+				`Task #${localId} cannot be matched to one checkbox: ${row.mapping.reason}`,
+				"Fix tasks.md so the task is unique, then refresh.",
+			);
 		if (row.done) return { kind: "completed", changed: false, revision: snap.revision, snapshot: snap };
 
 		const io = fs();
 		let real: string;
 		try {
-			const [file, dir, planning] = await Promise.all([io.realpath(snap.file), io.realpath(snap.changeRoot), io.realpath(snap.binding!.root)]);
+			const [file, dir, planning] = await Promise.all([
+				io.realpath(snap.file),
+				io.realpath(snap.changeRoot),
+				io.realpath(snap.binding!.root),
+			]);
 			if (!isInside(planning, dir) || !isInside(dir, file)) {
-				return reject("unsafe-path", "The task file resolves outside the confirmed change directory, so it will not be edited.", "Fix the link or choose another change with /todo-settings.");
+				return reject(
+					"unsafe-path",
+					"The task file resolves outside the confirmed change directory, so it will not be edited.",
+					"Fix the link or choose another change with /todo-settings.",
+				);
 			}
 			real = file;
 		} catch (error) {
@@ -141,20 +182,31 @@ export function createWriter(deps: WriterDeps) {
 		try {
 			await io.access(real);
 		} catch (error) {
-			return reject("permission", `The task file is not writable: ${(error as Error).message}`, "Make the file writable or check the box yourself, then refresh.");
+			return reject(
+				"permission",
+				`The task file is not writable: ${(error as Error).message}`,
+				"Make the file writable or check the box yourself, then refresh.",
+			);
 		}
 
 		const section = async (): Promise<Staged> => {
 			const f = fs();
-			const fail = (code: RejectCode, message: string, action: string): Staged => ({ persisted: false, code, message, action });
+			const fail = (code: RejectCode, message: string, action: string): Staged => ({
+				persisted: false,
+				code,
+				message,
+				action,
+			});
 			let staged: string | undefined;
 			try {
 				const bytes = await f.readFile(real);
-				if (revisionOf(bytes) !== snap.revision) return fail("conflict", "The task file changed while the write was waiting.", REFRESH);
+				if (revisionOf(bytes) !== snap.revision)
+					return fail("conflict", "The task file changed while the write was waiting.", REFRESH);
 
 				const patch = patchCompletion(bytes, { fingerprint: row.fingerprint });
 				if (!patch.ok) {
-					const code: RejectCode = patch.code === "not-utf8" ? "not-editable" : patch.code === "ambiguous" ? "unmappable" : "conflict";
+					const code: RejectCode =
+						patch.code === "not-utf8" ? "not-editable" : patch.code === "ambiguous" ? "unmappable" : "conflict";
 					return fail(code, patch.reason, REFRESH);
 				}
 
@@ -162,16 +214,28 @@ export function createWriter(deps: WriterDeps) {
 				staged = `${real}.${process.pid}.${randomBytes(4).toString("hex")}.pi-todo.tmp`;
 				await f.writeStaged(staged, patch.bytes, fileMode & 0o777);
 
-				if (revisionOf(await f.readFile(real)) !== snap.revision) return fail("conflict", "The task file changed while the new version was being staged.", REFRESH);
-				if (signal?.aborted) return fail("write-failed", "Cancelled before the file was replaced.", "Retry when ready.");
-				if (!current()) return fail("write-failed", `Cancelled before the file was replaced. ${MOVED}`, "Choose the change again if needed.");
+				if (revisionOf(await f.readFile(real)) !== snap.revision)
+					return fail("conflict", "The task file changed while the new version was being staged.", REFRESH);
+				if (signal?.aborted)
+					return fail("write-failed", "Cancelled before the file was replaced.", "Retry when ready.");
+				if (!current())
+					return fail(
+						"write-failed",
+						`Cancelled before the file was replaced. ${MOVED}`,
+						"Choose the change again if needed.",
+					);
 
 				await f.rename(staged, real);
 				staged = undefined;
 				return { persisted: true };
 			} catch (error) {
 				const code = (error as NodeJS.ErrnoException).code;
-				if (code && PERMISSION_CODES.has(code)) return fail("permission", `The task file could not be written: ${(error as Error).message}`, "Fix the permissions or check the box yourself, then refresh.");
+				if (code && PERMISSION_CODES.has(code))
+					return fail(
+						"permission",
+						`The task file could not be written: ${(error as Error).message}`,
+						"Fix the permissions or check the box yourself, then refresh.",
+					);
 				return fail("write-failed", `The task file could not be written: ${(error as Error).message}`, REFRESH);
 			} finally {
 				if (staged) await f.unlink(staged).catch(() => undefined);
@@ -181,8 +245,18 @@ export function createWriter(deps: WriterDeps) {
 		const locked = await withTargetLock(real, { ...deps.lock, signal }, section);
 		if (!locked.ok) {
 			if (locked.kind === "cancelled") return cancelled(locked.message);
-			if (locked.kind === "contended") return reject("lock-contended", locked.message, "Wait for the other writer to finish, or follow the recovery step above, then retry.");
-			if (locked.code && PERMISSION_CODES.has(locked.code)) return reject("permission", locked.message, "Fix the directory permissions or check the box yourself, then refresh.");
+			if (locked.kind === "contended")
+				return reject(
+					"lock-contended",
+					locked.message,
+					"Wait for the other writer to finish, or follow the recovery step above, then retry.",
+				);
+			if (locked.code && PERMISSION_CODES.has(locked.code))
+				return reject(
+					"permission",
+					locked.message,
+					"Fix the directory permissions or check the box yourself, then refresh.",
+				);
 			return reject("write-failed", locked.message, REFRESH);
 		}
 		const staged = locked.value;
@@ -234,7 +308,13 @@ export function createWriter(deps: WriterDeps) {
 			};
 		}
 		const warnings = await repaint(after);
-		return { kind: "completed", changed: true, revision: after.revision!, snapshot: after, ...(warnings ? { warnings } : {}) };
+		return {
+			kind: "completed",
+			changed: true,
+			revision: after.revision!,
+			snapshot: after,
+			...(warnings ? { warnings } : {}),
+		};
 	}
 
 	return { complete };

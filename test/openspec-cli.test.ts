@@ -40,14 +40,25 @@ describe.skipIf(!HAS_CLI)("discovery and snapshot against the installed OpenSpec
 		const first = await provider.refresh("s1");
 		expect(first).toMatchObject({ freshness: "fresh", writable: true, schema: "spec-driven" });
 		expect(first.implementation).toMatchObject({ total: 3, complete: 1, remaining: 2 });
-		expect(first.linked.map((r) => [r.id, r.description, r.done])).toEqual([[1, "1.1 Done", true], [2, "1.2 Open", false]]);
+		expect(first.linked.map((r) => [r.id, r.description, r.done])).toEqual([
+			[1, "1.1 Done", true],
+			[2, "1.2 Open", false],
+		]);
 		expect(first.planning?.isComplete).toBe(true);
 		expect(first.diagnostics.join(" ")).toMatch(/1 checkbox without text/);
 
 		writeFileSync(tasksPath, "- [ ] 1.2 Open\n- [x] 1.1 Done\n- [x] 1.3 New\n");
 		const second = await provider.refresh("s1");
-		expect(second.linked.map((r) => [r.id, r.description, r.done])).toEqual([[2, "1.2 Open", false], [1, "1.1 Done", true], [3, "1.3 New", true]]);
-		expect(second.implementation).toMatchObject({ state: "all_done" === second.implementation?.state ? "all_done" : "ready", total: 3, complete: 2 });
+		expect(second.linked.map((r) => [r.id, r.description, r.done])).toEqual([
+			[2, "1.2 Open", false],
+			[1, "1.1 Done", true],
+			[3, "1.3 New", true],
+		]);
+		expect(second.implementation).toMatchObject({
+			state: "all_done" === second.implementation?.state ? "all_done" : "ready",
+			total: 3,
+			complete: 2,
+		});
 	});
 
 	it("reports a change that disappears", async () => {
@@ -75,15 +86,28 @@ describe.skipIf(!HAS_CLI)("discovery and snapshot against the installed OpenSpec
 		expect(outcome).toMatchObject({ kind: "completed", changed: true });
 		expect(readFileSync(tasksPath, "utf-8")).toBe(original.replace("[ ] 1.2 Target", "[x] 1.2 Target"));
 
-		const cli = spawnSync("openspec", ["instructions", "apply", "--change", "writes", "--json"], { cwd: fixture.root, encoding: "utf-8" });
+		const cli = spawnSync("openspec", ["instructions", "apply", "--change", "writes", "--json"], {
+			cwd: fixture.root,
+			encoding: "utf-8",
+		});
 		const apply = JSON.parse(cli.stdout);
-		expect(apply.tasks.map((t: any) => [t.description, t.done])).toEqual([["1.1 Done", true], ["1.2 Target", true], ["1.3 Started", false]]);
+		expect(apply.tasks.map((t: any) => [t.description, t.done])).toEqual([
+			["1.1 Done", true],
+			["1.2 Target", true],
+			["1.3 Started", false],
+		]);
 		expect(apply.progress).toMatchObject({ total: 4, complete: 2 });
 
 		// A second attempt is a no-op, and a stale revision is refused.
 		const again = await provider.refresh("s1");
-		expect(await writer.complete("s1", target.id, again.revision!)).toMatchObject({ kind: "completed", changed: false });
-		expect(await writer.complete("s1", target.id, view.revision!)).toMatchObject({ kind: "rejected", code: "stale-revision" });
+		expect(await writer.complete("s1", target.id, again.revision!)).toMatchObject({
+			kind: "completed",
+			changed: false,
+		});
+		expect(await writer.complete("s1", target.id, view.revision!)).toMatchObject({
+			kind: "rejected",
+			code: "stale-revision",
+		});
 	}, 60_000);
 
 	it("the todo tool completes a task in a real root and a real watcher follows an external edit", async () => {
@@ -102,20 +126,39 @@ describe.skipIf(!HAS_CLI)("discovery and snapshot against the installed OpenSpec
 
 			const list = await callTool(host, ctx, { action: "list" });
 			const rev = /expectedRevision "([0-9a-f]{16})"/.exec(list.text)![1];
-			expect((await callTool(host, ctx, { action: "update", id: 1, status: "in_progress", activeForm: "a", expectedRevision: rev })).text).toContain("pending → in_progress");
+			expect(
+				(
+					await callTool(host, ctx, {
+						action: "update",
+						id: 1,
+						status: "in_progress",
+						activeForm: "a",
+						expectedRevision: rev,
+					})
+				).text,
+			).toContain("pending → in_progress");
 			expect(readFileSync(tasksPath, "utf-8")).toBe("- [ ] 1.1 A\n- [ ] 1.2 B\n");
 
 			const rev2 = /expectedRevision "([0-9a-f]{16})"/.exec((await callTool(host, ctx, { action: "list" })).text)![1];
 			const done = await callTool(host, ctx, { action: "update", id: 1, status: "completed", expectedRevision: rev2 });
 			expect(done.text).toContain("CLI confirmed this task as done");
 			expect(readFileSync(tasksPath, "utf-8")).toBe("- [x] 1.1 A\n- [ ] 1.2 B\n");
-			const cli = JSON.parse(spawnSync("openspec", ["instructions", "apply", "--change", "tool-e2e", "--json"], { cwd: fixture.root, encoding: "utf-8" }).stdout);
+			const cli = JSON.parse(
+				spawnSync("openspec", ["instructions", "apply", "--change", "tool-e2e", "--json"], {
+					cwd: fixture.root,
+					encoding: "utf-8",
+				}).stdout,
+			);
 			expect(cli.tasks.map((t: any) => t.done)).toEqual([true, false]);
 
 			// An external edit, noticed by the real watcher and the real CLI, with no tool call.
 			writeFileSync(tasksPath, "- [ ] 1.1 A\n- [x] 1.2 B\n");
 			const end = Date.now() + 20_000;
-			const done2 = () => runtime.provider.getSnapshot(id).linked.map((r) => r.done).join() === "false,true";
+			const done2 = () =>
+				runtime.provider
+					.getSnapshot(id)
+					.linked.map((r) => r.done)
+					.join() === "false,true";
 			while (!done2() && Date.now() < end) await new Promise((r) => setTimeout(r, 100));
 			expect(runtime.provider.getSnapshot(id).linked.map((r) => r.done)).toEqual([false, true]);
 			expect(errors).toEqual([]);

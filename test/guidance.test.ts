@@ -11,7 +11,10 @@ useCleanEnvironment();
 const paths = useSyncRoot();
 
 /** A theme whose styling calls return plain text, so rendered lines can be compared. */
-const theme: any = new Proxy({}, { get: (_t, key) => (key === "fg" || key === "bg" ? (_c: string, text: string) => text : (text: string) => text) });
+const theme: any = new Proxy(
+	{},
+	{ get: (_t, key) => (key === "fg" || key === "bg" ? (_c: string, text: string) => text : (text: string) => text) },
+);
 const rendered = (component: { render(width: number): string[] }) => component.render(200).join("\n").trim();
 const guidance = () => DEFAULT_PROMPT_GUIDELINES.join("\n");
 
@@ -69,24 +72,50 @@ describe("tool guidance", () => {
 
 describe("result labels are honest", () => {
 	it("a successful update shows the new status", () => {
-		const details = { action: "update", params: { action: "update", id: 1, status: "completed" }, tasks: [{ id: 1, subject: "A", status: "completed" }], nextId: 2 };
+		const details = {
+			action: "update",
+			params: { action: "update", id: 1, status: "completed" },
+			tasks: [{ id: 1, subject: "A", status: "completed" }],
+			nextId: 2,
+		};
 		expect(rendered(renderTodoResult({ details }, theme))).toBe("● completed");
 	});
 
 	it("a failed call never shows a success status, even when it asked for one", () => {
-		const details = { action: "update", params: { action: "update", id: 1, status: "completed" }, tasks: [{ id: 1, subject: "A", status: "pending" }], nextId: 2, error: "The task file could not be written" };
+		const details = {
+			action: "update",
+			params: { action: "update", id: 1, status: "completed" },
+			tasks: [{ id: 1, subject: "A", status: "pending" }],
+			nextId: 2,
+			error: "The task file could not be written",
+		};
 		expect(rendered(renderTodoResult({ details }, theme))).toBe("✗ failed");
 	});
 
 	it("the failure is styled as an error, not as success", () => {
-		const coloured: any = new Proxy({}, { get: (_t, key) => (key === "fg" ? (c: string, text: string) => `<${c}>${text}` : (text: string) => text) });
-		const details = { action: "update", params: { action: "update", id: 1, status: "completed" }, tasks: [], nextId: 1, error: "x" };
+		const coloured: any = new Proxy(
+			{},
+			{ get: (_t, key) => (key === "fg" ? (c: string, text: string) => `<${c}>${text}` : (text: string) => text) },
+		);
+		const details = {
+			action: "update",
+			params: { action: "update", id: 1, status: "completed" },
+			tasks: [],
+			nextId: 1,
+			error: "x",
+		};
 		expect(rendered(renderTodoResult({ details }, coloured))).toBe("<error>✗ failed");
 	});
 
 	it("a failed create, delete and list are all shown as failed", () => {
 		for (const action of ["create", "delete", "list"]) {
-			const details = { action, params: { action }, tasks: [{ id: 1, subject: "A", status: "pending" }], nextId: 2, error: "nope" };
+			const details = {
+				action,
+				params: { action },
+				tasks: [{ id: 1, subject: "A", status: "pending" }],
+				nextId: 2,
+				error: "nope",
+			};
 			expect(rendered(renderTodoResult({ details }, theme))).toBe("✗ failed");
 		}
 	});

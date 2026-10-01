@@ -117,7 +117,9 @@ export function createCoalescer(run: () => Promise<void> | void, options: Coales
 			settleIdle();
 		},
 		idle() {
-			return timer === undefined && !running ? Promise.resolve() : new Promise<void>((resolve) => waiters.push(resolve));
+			return timer === undefined && !running
+				? Promise.resolve()
+				: new Promise<void>((resolve) => waiters.push(resolve));
 		},
 	};
 }

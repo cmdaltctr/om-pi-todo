@@ -174,7 +174,8 @@ export class TodoOverlay {
 			return `${base} (${counts.completed}/${counts.total})`;
 		}
 		const { openspec, incidental } = sections;
-		const flag = openspec.freshness === "stale" || openspec.freshness === "unavailable" ? ` ⚠ ${openspec.freshness}` : "";
+		const flag =
+			openspec.freshness === "stale" || openspec.freshness === "unavailable" ? ` ⚠ ${openspec.freshness}` : "";
 		let text = `${base} · OpenSpec ${openspec.complete}/${openspec.total}${flag}${openspec.refreshing ? " ↻" : ""}`;
 		if (incidental.total > 0) text += ` · incidental ${incidental.complete}/${incidental.total}`;
 		return text;
@@ -194,7 +195,9 @@ export class TodoOverlay {
 		const hasActive = selectHasActive(allState);
 		const headingColor = hasActive ? "accent" : "dim";
 		const headingIcon = hasActive ? "●" : "○";
-		const heading = truncate(`${theme.fg(headingColor, headingIcon)} ${theme.fg(headingColor, this.headingText(allState, snapshot.sections))}`);
+		const heading = truncate(
+			`${theme.fg(headingColor, headingIcon)} ${theme.fg(headingColor, this.headingText(allState, snapshot.sections))}`,
+		);
 
 		// Collapsed view: just the heading + a dim "└─" expand hint, then the trailing spacer. Short-circuit
 		// before the budget math and the completed-display tracking — nothing is shown to track, and skipping
@@ -212,7 +215,10 @@ export class TodoOverlay {
 		// Every row is hidden because every task is completed: keep a compact summary.
 		if (overlayTasks.length === 0) {
 			const noun = hiddenByTurn === 1 ? "row" : "rows";
-			return this.withTrailingSpacer([heading, truncate(`${theme.fg("dim", "└─")} ${theme.fg("dim", `all completed (${hiddenByTurn} ${noun} hidden)`)}`)]);
+			return this.withTrailingSpacer([
+				heading,
+				truncate(`${theme.fg("dim", "└─")} ${theme.fg("dim", `all completed (${hiddenByTurn} ${noun} hidden)`)}`),
+			]);
 		}
 
 		const lines: string[] = [heading];
@@ -225,11 +231,20 @@ export class TodoOverlay {
 		const bodyBudget = this.uiCtx?.getToolsExpanded?.() === true ? overlayTasks.length : getMaxWidgetLines() - 1;
 		const layout = selectOverlayLayout(overlayState, bodyBudget);
 		for (const task of layout.visible) {
-			lines.push(truncate(`${theme.fg("dim", "├─")} ${formatOverlayTaskLine(task, theme, showIds, presentTask(task, byId, run))}`));
+			lines.push(
+				truncate(
+					`${theme.fg("dim", "├─")} ${formatOverlayTaskLine(task, theme, showIds, presentTask(task, byId, run))}`,
+				),
+			);
 		}
 
 		const newlyDisplayedCompletedTaskIds = overlayTasks
-			.filter((task) => task.status === "completed" && !this.completedTaskIdsPendingHide.has(task.id) && !this.hiddenCompletedTaskIds.has(task.id))
+			.filter(
+				(task) =>
+					task.status === "completed" &&
+					!this.completedTaskIdsPendingHide.has(task.id) &&
+					!this.hiddenCompletedTaskIds.has(task.id),
+			)
 			.map((task) => task.id);
 		for (const taskId of newlyDisplayedCompletedTaskIds) {
 			this.completedTaskIdsPendingHide.add(taskId);
@@ -247,7 +262,9 @@ export class TodoOverlay {
 		if (hiddenCompleted > 0) parts.push(`${hiddenCompleted} completed hidden`);
 		if (layout.truncatedTail > 0) parts.push(`${layout.truncatedTail} pending`);
 		const more = t("overlay.more", OVERLAY_MORE);
-		lines.push(truncate(`${theme.fg("dim", "└─")} ${theme.fg("dim", `+${totalHidden} ${more} (${parts.join(", ")})`)}`));
+		lines.push(
+			truncate(`${theme.fg("dim", "└─")} ${theme.fg("dim", `+${totalHidden} ${more} (${parts.join(", ")})`)}`),
+		);
 		return this.withTrailingSpacer(lines);
 	}
 

@@ -22,7 +22,12 @@ describe("normal mode: tool parity", () => {
 		const host = setup();
 		const ctx = createCtx("s1");
 		const first = await callTool(host, ctx, { action: "create", subject: "Write tests" });
-		const second = await callTool(host, ctx, { action: "create", subject: "Fix bug", description: "Long form", owner: "me" });
+		const second = await callTool(host, ctx, {
+			action: "create",
+			subject: "Fix bug",
+			description: "Long form",
+			owner: "me",
+		});
 		expect(first.text).toBe("Created #1: Write tests (pending)");
 		expect(second.text).toBe("Created #2: Fix bug (pending)");
 		expect(second.details.nextId).toBe(3);
@@ -36,9 +41,9 @@ describe("normal mode: tool parity", () => {
 		const host = setup();
 		const ctx = createCtx("s1");
 		await callTool(host, ctx, { action: "create", subject: "A" });
-		expect((await callTool(host, ctx, { action: "update", id: 1, status: "in_progress", activeForm: "working" })).text).toBe(
-			"Updated #1 (pending → in_progress)",
-		);
+		expect(
+			(await callTool(host, ctx, { action: "update", id: 1, status: "in_progress", activeForm: "working" })).text,
+		).toBe("Updated #1 (pending → in_progress)");
 		expect((await callTool(host, ctx, { action: "update", id: 1, status: "completed" })).text).toBe(
 			"Updated #1 (in_progress → completed)",
 		);
@@ -65,8 +70,12 @@ describe("normal mode: tool parity", () => {
 	it("rejects empty subjects, unknown ids, and updates with no fields", async () => {
 		const host = setup();
 		const ctx = createCtx("s1");
-		expect((await callTool(host, ctx, { action: "create", subject: "  " })).text).toBe("Error: subject required for create");
-		expect((await callTool(host, ctx, { action: "update", id: 9, status: "completed" })).text).toBe("Error: #9 not found");
+		expect((await callTool(host, ctx, { action: "create", subject: "  " })).text).toBe(
+			"Error: subject required for create",
+		);
+		expect((await callTool(host, ctx, { action: "update", id: 9, status: "completed" })).text).toBe(
+			"Error: #9 not found",
+		);
 		await callTool(host, ctx, { action: "create", subject: "A" });
 		const empty = await callTool(host, ctx, { action: "update", id: 1 });
 		expect(empty.text).toMatch(/^Error: update requires at least one mutable field/);
@@ -77,11 +86,15 @@ describe("normal mode: tool parity", () => {
 		const ctx = createCtx("s1");
 		await callTool(host, ctx, { action: "create", subject: "A" });
 		await callTool(host, ctx, { action: "create", subject: "B", blockedBy: [1] });
-		expect((await callTool(host, ctx, { action: "create", subject: "C", blockedBy: [7] })).text).toBe("Error: blockedBy: #7 not found");
+		expect((await callTool(host, ctx, { action: "create", subject: "C", blockedBy: [7] })).text).toBe(
+			"Error: blockedBy: #7 not found",
+		);
 		expect((await callTool(host, ctx, { action: "update", id: 1, addBlockedBy: [2] })).text).toBe(
 			"Error: addBlockedBy would create a cycle in the blockedBy graph",
 		);
-		expect((await callTool(host, ctx, { action: "update", id: 1, addBlockedBy: [1] })).text).toBe("Error: cannot block #1 on itself");
+		expect((await callTool(host, ctx, { action: "update", id: 1, addBlockedBy: [1] })).text).toBe(
+			"Error: cannot block #1 on itself",
+		);
 		expect((await callTool(host, ctx, { action: "list" })).text).toBe("[pending] #1 A\n[pending] #2 B ⛓ #1");
 		expect((await callTool(host, ctx, { action: "get", id: 1 })).text).toBe("#1 [pending] A\n  blocks: #2");
 	});
@@ -126,10 +139,17 @@ describe("normal mode: waiting and failure reasons", () => {
 		const host = setup();
 		const ctx = createCtx("s1");
 		await callTool(host, ctx, { action: "create", subject: "A" });
-		const set = await callTool(host, ctx, { action: "update", id: 1, waitingReason: "approval from Sam", failureReason: "review failed" });
+		const set = await callTool(host, ctx, {
+			action: "update",
+			id: 1,
+			waitingReason: "approval from Sam",
+			failureReason: "review failed",
+		});
 		expect(set.text).toBe("Updated #1");
 		expect(set.details.tasks[0]).toMatchObject({ waitingReason: "approval from Sam", failureReason: "review failed" });
-		expect((await callTool(host, ctx, { action: "get", id: 1 })).text).toBe("#1 [pending] A\n  waiting: approval from Sam\n  failed: review failed");
+		expect((await callTool(host, ctx, { action: "get", id: 1 })).text).toBe(
+			"#1 [pending] A\n  waiting: approval from Sam\n  failed: review failed",
+		);
 		const cleared = await callTool(host, ctx, { action: "update", id: 1, waitingReason: "", failureReason: "" });
 		expect(cleared.details.tasks[0]).toEqual({ id: 1, subject: "A", status: "pending" });
 	});
@@ -154,7 +174,8 @@ describe("normal mode: waiting and failure reasons", () => {
 		const host = setup();
 		const schema = host.tools.get("todo").parameters;
 		expect(schema.required).toEqual(["action"]);
-		for (const key of ["scope", "reason", "expectedRevision", "waitingReason", "failureReason"]) expect(Object.keys(schema.properties)).toContain(key);
+		for (const key of ["scope", "reason", "expectedRevision", "waitingReason", "failureReason"])
+			expect(Object.keys(schema.properties)).toContain(key);
 	});
 });
 
@@ -188,7 +209,10 @@ describe("normal mode: /todos command", () => {
 		await callTool(host, ctx, { action: "update", id: 2, status: "in_progress", activeForm: "doing B" });
 		await run(host, ctx);
 		expect(notes).toEqual([
-			["1/3 completed · 1 in progress · 1 pending\n── Pending ──\n  ○ #3 C\n── In Progress ──\n  ◐ #2 B (doing B)\n── Completed ──\n  ✓ #1 A", "info"],
+			[
+				"1/3 completed · 1 in progress · 1 pending\n── Pending ──\n  ○ #3 C\n── In Progress ──\n  ◐ #2 B (doing B)\n── Completed ──\n  ✓ #1 A",
+				"info",
+			],
 		]);
 	});
 });

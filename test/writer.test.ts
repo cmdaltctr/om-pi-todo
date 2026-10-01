@@ -1,4 +1,17 @@
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
+import {
+	chmodSync,
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readdirSync,
+	readFileSync,
+	renameSync,
+	rmSync,
+	statSync,
+	symlinkSync,
+	utimesSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -31,10 +44,18 @@ const bound = (): SessionMode => ({ mode: "openspec", binding: { root, change: "
 const disk = () => readFileSync(tasksPath);
 const leftovers = () => readdirSync(changeRoot).filter((f) => f !== "tasks.md");
 
-function setup(content: string | Buffer, mode: (id: string) => SessionMode = bound, fs: Partial<WriterFs> = {}, lock = { waitMs: 150, pollMs: 10 }) {
+function setup(
+	content: string | Buffer,
+	mode: (id: string) => SessionMode = bound,
+	fs: Partial<WriterFs> = {},
+	lock = { waitMs: 150, pollMs: 10 },
+) {
 	writeFileSync(tasksPath, content);
 	const cli = makeFakeCli({ root, change: "a", tasksPath, changeRoot });
-	const provider = createSnapshotProvider({ run: cli.run as any }, { getMode: (id) => mode(id), getOrdinary: () => [] });
+	const provider = createSnapshotProvider(
+		{ run: cli.run as any },
+		{ getMode: (id) => mode(id), getOrdinary: () => [] },
+	);
 	const writer = createWriter({ provider, fs, lock });
 	/** Read the view, as the agent does, and return it with its revision. */
 	const read = async (session = "s1") => provider.refresh(session);
@@ -60,7 +81,10 @@ describe("completing a task", () => {
 		const view = await read();
 		const outcome = await writer.complete("s1", 1, view.revision!);
 		if (outcome.kind !== "completed") throw new Error(outcome.kind);
-		expect(outcome.snapshot.linked.map((r) => [r.id, r.done])).toEqual([[1, true], [2, false]]);
+		expect(outcome.snapshot.linked.map((r) => [r.id, r.done])).toEqual([
+			[1, true],
+			[2, false],
+		]);
 		expect(outcome.snapshot.implementation).toMatchObject({ complete: 1, remaining: 1 });
 		expect(outcome.revision).not.toBe(view.revision);
 		expect(outcome.snapshot.writable).toBe(true);
@@ -131,7 +155,10 @@ describe("refusals that change nothing", () => {
 	it("rejects a missing revision", async () => {
 		await untouched(md("- [ ] A"), async (t) => {
 			await t.read();
-			expect(await t.writer.complete("s1", 1, undefined as any)).toMatchObject({ kind: "rejected", code: "stale-revision" });
+			expect(await t.writer.complete("s1", 1, undefined as any)).toMatchObject({
+				kind: "rejected",
+				code: "stale-revision",
+			});
 			expect(await t.writer.complete("s1", 1, "")).toMatchObject({ kind: "rejected", code: "stale-revision" });
 		});
 	});
@@ -139,10 +166,16 @@ describe("refusals that change nothing", () => {
 	it("rejects an id that does not exist or was removed", async () => {
 		await untouched(md("- [ ] A", "- [ ] B"), async (t) => {
 			let view = await t.read();
-			expect(await t.writer.complete("s1", 9, view.revision!)).toMatchObject({ kind: "rejected", code: "unknown-task" });
+			expect(await t.writer.complete("s1", 9, view.revision!)).toMatchObject({
+				kind: "rejected",
+				code: "unknown-task",
+			});
 			writeFileSync(tasksPath, md("- [ ] A"));
 			view = await t.read();
-			expect(await t.writer.complete("s1", 2, view.revision!)).toMatchObject({ kind: "rejected", code: "unknown-task" });
+			expect(await t.writer.complete("s1", 2, view.revision!)).toMatchObject({
+				kind: "rejected",
+				code: "unknown-task",
+			});
 			writeFileSync(tasksPath, md("- [ ] A", "- [ ] B"));
 		});
 	});
@@ -203,7 +236,10 @@ describe("unsafe paths", () => {
 			const t = setup(md("- [ ] A"));
 			const view = await t.read();
 			expect(view.freshness).toBe("unavailable");
-			expect(await t.writer.complete("s1", 1, view.revision!)).toMatchObject({ kind: "rejected", code: "not-writable" });
+			expect(await t.writer.complete("s1", 1, view.revision!)).toMatchObject({
+				kind: "rejected",
+				code: "not-writable",
+			});
 			expect(readFileSync(join(elsewhere, "tasks.md"), "utf-8")).toBe(md("- [ ] A"));
 		} finally {
 			rmSync(elsewhere, { recursive: true, force: true });
@@ -213,7 +249,10 @@ describe("unsafe paths", () => {
 	it("the writer checks again itself: a link swapped in after the read is refused and nothing is written", async () => {
 		const outside = mkdtempSync(join(tmpdir(), "pi-todo-swap-"));
 		try {
-			const t = setup(md("- [ ] A"), bound, { realpath: async (p: string) => (p === tasksPath ? join(outside, "tasks.md") : (await import("node:fs/promises")).realpath(p)) });
+			const t = setup(md("- [ ] A"), bound, {
+				realpath: async (p: string) =>
+					p === tasksPath ? join(outside, "tasks.md") : (await import("node:fs/promises")).realpath(p),
+			});
 			const view = await t.read(); // the read sees a normal file
 			expect(view.freshness).toBe("fresh");
 			expect(await t.writer.complete("s1", 1, view.revision!)).toMatchObject({ kind: "rejected", code: "unsafe-path" });
@@ -247,17 +286,20 @@ describe("permissions", () => {
 		expect(disk().toString()).toBe(md("- [ ] A"));
 	});
 
-	it.skipIf(process.getuid?.() === 0)("reports a directory that cannot take a new file, leaving the original and no temporary file", async () => {
-		const t = setup(md("- [ ] A"));
-		const view = await t.read();
-		chmodSync(changeRoot, 0o500);
-		const outcome = await t.writer.complete("s1", 1, view.revision!);
-		chmodSync(changeRoot, 0o700);
-		expect(outcome).toMatchObject({ kind: "rejected", code: "permission" });
-		expect(disk().toString()).toBe(md("- [ ] A"));
-		expect(leftovers()).toEqual([]);
-		expect(t.provider.getSnapshot("s1").linked[0].done).toBe(false);
-	});
+	it.skipIf(process.getuid?.() === 0)(
+		"reports a directory that cannot take a new file, leaving the original and no temporary file",
+		async () => {
+			const t = setup(md("- [ ] A"));
+			const view = await t.read();
+			chmodSync(changeRoot, 0o500);
+			const outcome = await t.writer.complete("s1", 1, view.revision!);
+			chmodSync(changeRoot, 0o700);
+			expect(outcome).toMatchObject({ kind: "rejected", code: "permission" });
+			expect(disk().toString()).toBe(md("- [ ] A"));
+			expect(leftovers()).toEqual([]);
+			expect(t.provider.getSnapshot("s1").linked[0].done).toBe(false);
+		},
+	);
 
 	it("labels a permission error from the replace step as a permission problem", async () => {
 		const t = setup(md("- [ ] A"), bound, {
@@ -333,7 +375,13 @@ describe("locks", () => {
 	it("reports a lock held elsewhere without touching the file", async () => {
 		const t = setup(md("- [ ] A"));
 		const view = await t.read();
-		const meta = { pid: process.pid, host: require("node:os").hostname(), createdAt: new Date().toISOString(), target: tasksPath, token: "d".repeat(32) };
+		const meta = {
+			pid: process.pid,
+			host: require("node:os").hostname(),
+			createdAt: new Date().toISOString(),
+			target: tasksPath,
+			token: "d".repeat(32),
+		};
 		writeFileSync(lockPathFor(require("node:fs").realpathSync(tasksPath)), JSON.stringify(meta));
 		const outcome = await t.writer.complete("s1", 1, view.revision!);
 		expect(outcome).toMatchObject({ kind: "rejected", code: "lock-contended" });
@@ -345,7 +393,11 @@ describe("locks", () => {
 		const ok = setup(md("- [ ] A"));
 		await ok.writer.complete("s1", 1, (await ok.read()).revision!);
 		expect(existsSync(lockPathFor(tasksPath))).toBe(false);
-		const bad = setup(md("- [ ] A"), bound, { rename: async () => { throw new Error("nope"); } });
+		const bad = setup(md("- [ ] A"), bound, {
+			rename: async () => {
+				throw new Error("nope");
+			},
+		});
 		await bad.writer.complete("s1", 1, (await bad.read()).revision!);
 		expect(existsSync(lockPathFor(tasksPath))).toBe(false);
 	});
@@ -376,7 +428,10 @@ describe("two sessions on one file", () => {
 		const loserSession = a.kind === "rejected" ? "one" : "two";
 		const loserId = a.kind === "rejected" ? 1 : 2;
 		const fresh = (await loserProvider.refresh(loserSession)).revision!;
-		expect(await loserWriter.complete(loserSession, loserId, fresh)).toMatchObject({ kind: "completed", changed: true });
+		expect(await loserWriter.complete(loserSession, loserId, fresh)).toMatchObject({
+			kind: "completed",
+			changed: true,
+		});
 		expect(disk().toString().match(/\[x\]/g)).toHaveLength(2);
 		expect(leftovers()).toEqual([]);
 	});
@@ -418,8 +473,22 @@ describe("success needs persistence and CLI confirmation", () => {
 		t.cli.hooks.apply = async () => {
 			applyCalls++;
 			if (applyCalls < 2) return undefined; // the writer's own pre-write refresh
-			const tasks = [{ id: "1", description: "A", done: false }, { id: "2", description: "B", done: true }];
-			return { ok: true, stderr: "", json: { changeName: "a", schemaName: "spec-driven", state: "ready", progress: { total: 2, complete: 1, remaining: 1 }, tasks, root: { path: root, source: "nearest" } } };
+			const tasks = [
+				{ id: "1", description: "A", done: false },
+				{ id: "2", description: "B", done: true },
+			];
+			return {
+				ok: true,
+				stderr: "",
+				json: {
+					changeName: "a",
+					schemaName: "spec-driven",
+					state: "ready",
+					progress: { total: 2, complete: 1, remaining: 1 },
+					tasks,
+					root: { path: root, source: "nearest" },
+				},
+			};
 		};
 		const outcome = await t.writer.complete("s1", 1, view.revision!);
 		expect(outcome).toMatchObject({ kind: "unconfirmed" });
@@ -433,8 +502,22 @@ describe("success needs persistence and CLI confirmation", () => {
 		t.cli.hooks.apply = async () => {
 			applyCalls++;
 			if (applyCalls < 2) return undefined;
-			const tasks = [{ id: "1", description: "A", done: false }, { id: "2", description: "Extra", done: true }];
-			return { ok: true, stderr: "", json: { changeName: "a", schemaName: "spec-driven", state: "ready", progress: { total: 2, complete: 1, remaining: 1 }, tasks, root: { path: root, source: "nearest" } } };
+			const tasks = [
+				{ id: "1", description: "A", done: false },
+				{ id: "2", description: "Extra", done: true },
+			];
+			return {
+				ok: true,
+				stderr: "",
+				json: {
+					changeName: "a",
+					schemaName: "spec-driven",
+					state: "ready",
+					progress: { total: 2, complete: 1, remaining: 1 },
+					tasks,
+					root: { path: root, source: "nearest" },
+				},
+			};
 		};
 		expect(await t.writer.complete("s1", 1, view.revision!)).toMatchObject({ kind: "unconfirmed" });
 	});
@@ -480,7 +563,12 @@ describe("persisted but the view cannot be refreshed", () => {
 
 	it("blocks further writes, does not write twice, and recovers on the next refresh", async () => {
 		let renames = 0;
-		const t = setup(md("- [ ] A", "- [ ] B"), bound, { rename: async (a, b) => { renames++; renameSync(a, b); } });
+		const t = setup(md("- [ ] A", "- [ ] B"), bound, {
+			rename: async (a, b) => {
+				renames++;
+				renameSync(a, b);
+			},
+		});
 		const view = await t.read();
 		let broken = false;
 		t.cli.hooks.apply = async () => {
@@ -511,7 +599,12 @@ describe("persisted but the view cannot be refreshed", () => {
 
 	it("reconciles before any retry, so a completion that did land is not written twice", async () => {
 		let renames = 0;
-		const t = setup(md("- [ ] A", "- [ ] B"), bound, { rename: async (a, b) => { renames++; renameSync(a, b); } });
+		const t = setup(md("- [ ] A", "- [ ] B"), bound, {
+			rename: async (a, b) => {
+				renames++;
+				renameSync(a, b);
+			},
+		});
 		const view = await t.read();
 		let applyCalls = 0;
 		t.cli.hooks.apply = async () => (++applyCalls === 2 ? fail("timeout", "timed out") : undefined); // the hook starts after the first read: pre-write refresh is 1, the confirming read is 2
@@ -525,7 +618,11 @@ describe("persisted but the view cannot be refreshed", () => {
 });
 
 describe("repaint after a persisted write", () => {
-	function withHook(onCommitted: (snapshot: any) => unknown, content = md("- [ ] A", "- [ ] B"), fs: Partial<WriterFs> = {}) {
+	function withHook(
+		onCommitted: (snapshot: any) => unknown,
+		content = md("- [ ] A", "- [ ] B"),
+		fs: Partial<WriterFs> = {},
+	) {
 		writeFileSync(tasksPath, content);
 		const cli = makeFakeCli({ root, change: "a", tasksPath, changeRoot });
 		const provider = createSnapshotProvider({ run: cli.run as any }, { getMode: () => bound(), getOrdinary: () => [] });
@@ -551,12 +648,19 @@ describe("repaint after a persisted write", () => {
 				throw new Error("widget gone");
 			},
 			md("- [ ] A"),
-			{ rename: async (a, b) => { renames++; renameSync(a, b); } },
+			{
+				rename: async (a, b) => {
+					renames++;
+					renameSync(a, b);
+				},
+			},
 		);
 		const view = await t.provider.refresh("s1");
 		const outcome = await t.writer.complete("s1", 1, view.revision!);
 		expect(outcome).toMatchObject({ kind: "completed", changed: true });
-		expect(outcome.kind === "completed" && outcome.warnings?.join(" ")).toMatch(/could not be repainted: widget gone.*\/todos refresh/);
+		expect(outcome.kind === "completed" && outcome.warnings?.join(" ")).toMatch(
+			/could not be repainted: widget gone.*\/todos refresh/,
+		);
 		expect(disk().toString()).toBe(md("- [x] A"));
 		expect(renames).toBe(1);
 		expect(t.provider.getSnapshot("s1").linked[0].done).toBe(true);
@@ -594,7 +698,9 @@ describe("repaint after a persisted write", () => {
 		expect(await t.writer.complete("s1", 1, view.revision!)).toMatchObject({ kind: "persisted-view-unavailable" });
 		expect(seen).toEqual(["stale"]);
 
-		const u = withHook((snap) => void seen.push(`unconfirmed:${snap.writable}`), md("- [ ] A"), { rename: async () => undefined });
+		const u = withHook((snap) => void seen.push(`unconfirmed:${snap.writable}`), md("- [ ] A"), {
+			rename: async () => undefined,
+		});
 		const v = await u.provider.refresh("s1");
 		expect(await u.writer.complete("s1", 1, v.revision!)).toMatchObject({ kind: "unconfirmed" });
 		expect(seen).toEqual(["stale", "unconfirmed:false"]);
@@ -650,7 +756,9 @@ describe("obsolete bindings", () => {
 			rename: async () => void renames++,
 		});
 		const view = await t.read();
-		expect(await t.writer.complete("s1", 1, view.revision!, { isCurrent: () => current })).toMatchObject({ kind: "cancelled" });
+		expect(await t.writer.complete("s1", 1, view.revision!, { isCurrent: () => current })).toMatchObject({
+			kind: "cancelled",
+		});
 		expect(renames).toBe(0);
 		expect(disk().toString()).toBe(md("- [ ] A"));
 		expect(leftovers()).toEqual([]);
@@ -666,7 +774,12 @@ describe("obsolete bindings", () => {
 			provider,
 			lock: { waitMs: 150, pollMs: 10 },
 			onCommitted: (snap) => void repainted.push(snap),
-			fs: { rename: async (a, b) => { renameSync(a, b); current = false; } }, // lands, then the binding moves
+			fs: {
+				rename: async (a, b) => {
+					renameSync(a, b);
+					current = false;
+				},
+			}, // lands, then the binding moves
 		});
 		const view = await provider.refresh("s1");
 		const outcome = await writer.complete("s1", 1, view.revision!, { isCurrent: () => current });
@@ -682,7 +795,13 @@ describe("cancellation", () => {
 	it("cancels before persistence without writing", async () => {
 		const t = setup(md("- [ ] A"));
 		const view = await t.read();
-		const meta = { pid: process.pid, host: require("node:os").hostname(), createdAt: new Date().toISOString(), target: tasksPath, token: "e".repeat(32) };
+		const meta = {
+			pid: process.pid,
+			host: require("node:os").hostname(),
+			createdAt: new Date().toISOString(),
+			target: tasksPath,
+			token: "e".repeat(32),
+		};
 		writeFileSync(lockPathFor(require("node:fs").realpathSync(tasksPath)), JSON.stringify(meta));
 		const controller = new AbortController();
 		const pending = t.writer.complete("s1", 1, view.revision!, { signal: controller.signal });
@@ -707,7 +826,9 @@ describe("cancellation", () => {
 			rename: async () => void renames++,
 		});
 		const view = await t.read();
-		expect(await t.writer.complete("s1", 1, view.revision!, { signal: controller.signal })).toMatchObject({ kind: "cancelled" });
+		expect(await t.writer.complete("s1", 1, view.revision!, { signal: controller.signal })).toMatchObject({
+			kind: "cancelled",
+		});
 		expect(renames).toBe(0);
 		expect(disk().toString()).toBe(md("- [ ] A"));
 		expect(leftovers()).toEqual([]);
@@ -718,7 +839,9 @@ describe("cancellation", () => {
 		const view = await t.read();
 		const controller = new AbortController();
 		controller.abort();
-		expect(await t.writer.complete("s1", 1, view.revision!, { signal: controller.signal })).toMatchObject({ kind: "cancelled" });
+		expect(await t.writer.complete("s1", 1, view.revision!, { signal: controller.signal })).toMatchObject({
+			kind: "cancelled",
+		});
 		expect(disk().toString()).toBe(md("- [ ] A"));
 	});
 

@@ -51,12 +51,12 @@ If you removed `rpiv-todo` completely, install it again with `pi install npm:@ju
 
 ## What stays after uninstall
 
-| Item | What happens |
-| --- | --- |
-| Your session history | Stays. Plain task lists still load in `rpiv-todo`. |
-| Ticked boxes in `tasks.md` | Stay. The extension never undoes them. |
-| OpenSpec mode | Gone. Without this extension, a session shows its basic list only. |
-| `~/.config/pi-todo/config.json` | Stays. It does no harm. |
+| Item                            | What happens                                                       |
+| ------------------------------- | ------------------------------------------------------------------ |
+| Your session history            | Stays. Plain task lists still load in `rpiv-todo`.                 |
+| Ticked boxes in `tasks.md`      | Stay. The extension never undoes them.                             |
+| OpenSpec mode                   | Gone. Without this extension, a session shows its basic list only. |
+| `~/.config/pi-todo/config.json` | Stays. It does no harm.                                            |
 
 ## Clean up (optional)
 

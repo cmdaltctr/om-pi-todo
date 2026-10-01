@@ -23,12 +23,22 @@ export type PatchResult =
 export function patchCompletion(original: Buffer, target: PatchTarget): PatchResult {
 	const text = original.toString("utf-8");
 	if (!Buffer.from(text, "utf-8").equals(original)) {
-		return { ok: false, code: "not-utf8", reason: "The task file is not valid UTF-8, so it cannot be edited without changing other bytes." };
+		return {
+			ok: false,
+			code: "not-utf8",
+			reason: "The task file is not valid UTF-8, so it cannot be edited without changing other bytes.",
+		};
 	}
 
 	const matches = listTasks(scanTasks(text)).filter((task) => task.fingerprint === target.fingerprint);
-	if (matches.length === 0) return { ok: false, code: "missing", reason: "The task wording is no longer in the file. Refresh and retry." };
-	if (matches.length > 1) return { ok: false, code: "ambiguous", reason: `${matches.length} tasks share this wording. Make each task unique in tasks.md.` };
+	if (matches.length === 0)
+		return { ok: false, code: "missing", reason: "The task wording is no longer in the file. Refresh and retry." };
+	if (matches.length > 1)
+		return {
+			ok: false,
+			code: "ambiguous",
+			reason: `${matches.length} tasks share this wording. Make each task unique in tasks.md.`,
+		};
 
 	const task = matches[0];
 	if (task.done) return { ok: true, bytes: original, changed: false };

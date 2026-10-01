@@ -10,7 +10,10 @@ useCleanEnvironment();
 const paths = useSyncRoot();
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /** A theme whose every styling call returns the plain text. */
-const theme: any = new Proxy({}, { get: (_t, key) => (key === "fg" || key === "bg" ? (_c: string, text: string) => text : (text: string) => text) });
+const theme: any = new Proxy(
+	{},
+	{ get: (_t, key) => (key === "fg" || key === "bg" ? (_c: string, text: string) => text : (text: string) => text) },
+);
 
 async function boot(content: string) {
 	writeFileSync(paths.tasksPath, content);
@@ -35,17 +38,22 @@ async function boot(content: string) {
 	const widgets = new Map<string, any>();
 	const notes: string[] = [];
 	const uiFor = (extra: Record<string, unknown> = {}) => ({
-		setWidget: (key: string, factory: unknown) => void (factory === undefined ? widgets.delete(key) : widgets.set(key, factory)),
+		setWidget: (key: string, factory: unknown) =>
+			void (factory === undefined ? widgets.delete(key) : widgets.set(key, factory)),
 		notify: (m: string) => void notes.push(m),
 		theme,
 		...extra,
 	});
 	const bound = [sessionEntry({ mode: "openspec", binding: { root: paths.root, change: "a" } })];
-	const session = (id = "s1", branch: unknown[] = bound, ui: Record<string, unknown> = {}) => createCtx(id, branch, { hasUI: true, cwd: paths.root, ui: uiFor(ui) });
-	const fire = (event: string, ctx: unknown, payload: unknown = {}) => Promise.all((host.handlers.get(event) ?? []).map((h) => h(payload, ctx)));
+	const session = (id = "s1", branch: unknown[] = bound, ui: Record<string, unknown> = {}) =>
+		createCtx(id, branch, { hasUI: true, cwd: paths.root, ui: uiFor(ui) });
+	const fire = (event: string, ctx: unknown, payload: unknown = {}) =>
+		Promise.all((host.handlers.get(event) ?? []).map((h) => h(payload, ctx)));
 	const panel = () => {
 		const factory = widgets.get("rpiv-todos");
-		return factory ? (factory({ requestRender() {} }, theme).render(100) as string[]).filter((l) => l !== "") : undefined;
+		return factory
+			? (factory({ requestRender() {} }, theme).render(100) as string[]).filter((l) => l !== "")
+			: undefined;
 	};
 	const settle = async () => {
 		await sleep(40);

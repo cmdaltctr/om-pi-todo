@@ -5,26 +5,48 @@ import { TodoOverlay } from "../src/todo-overlay.js";
 import type { Task } from "../src/tool/types.js";
 import type { PanelModel } from "../src/view/panel-model.js";
 
-const theme: any = new Proxy({}, { get: (_t, key) => (key === "fg" || key === "bg" ? (_c: string, text: string) => text : (text: string) => text) });
-const task = (id: number, status: Task["status"], over: Partial<Task> = {}): Task => ({ id, subject: `Task ${id}`, status, ...over });
+const theme: any = new Proxy(
+	{},
+	{ get: (_t, key) => (key === "fg" || key === "bg" ? (_c: string, text: string) => text : (text: string) => text) },
+);
+const task = (id: number, status: Task["status"], over: Partial<Task> = {}): Task => ({
+	id,
+	subject: `Task ${id}`,
+	status,
+	...over,
+});
 
 /** An overlay wired to a fake widget host. `state` and `run` can be changed between renders. */
 function build(initial: Task[], options: { sections?: PanelModel["sections"]; run?: RunState; budget?: number } = {}) {
-	const model = { state: { tasks: initial, nextId: initial.reduce((m, t) => Math.max(m, t.id + 1), 1) } as TaskState, sections: options.sections };
+	const model = {
+		state: { tasks: initial, nextId: initial.reduce((m, t) => Math.max(m, t.id + 1), 1) } as TaskState,
+		sections: options.sections,
+	};
 	const run = { value: options.run ?? ("idle" as RunState) };
-	const overlay = new TodoOverlay(() => ({ state: model.state, sections: model.sections }), () => run.value);
+	const overlay = new TodoOverlay(
+		() => ({ state: model.state, sections: model.sections }),
+		() => run.value,
+	);
 	let factory: any;
 	const requestRender = vi.fn();
 	const setWidget = vi.fn((_key: string, f: unknown) => void (factory = f));
 	overlay.setUICtx({ setWidget, theme, getToolsExpanded: () => false } as any);
-	const render = (): string[] => (factory ? (factory({ requestRender }, theme).render(120) as string[]).filter((l) => l !== "") : []);
-	const set = (tasks: Task[], nextId?: number) => void (model.state = { tasks, nextId: nextId ?? tasks.reduce((m, t) => Math.max(m, t.id + 1), 1) });
+	const render = (): string[] =>
+		factory ? (factory({ requestRender }, theme).render(120) as string[]).filter((l) => l !== "") : [];
+	const set = (tasks: Task[], nextId?: number) =>
+		void (model.state = { tasks, nextId: nextId ?? tasks.reduce((m, t) => Math.max(m, t.id + 1), 1) });
 	return { overlay, model, run, render, set, setWidget, requestRender, registered: () => overlay.isRegistered() };
 }
 
 describe("heading counts every non-deleted task, before any row is hidden", () => {
 	it("keeps 2 of 5 after two completed rows are hidden on the next turn, and says so", () => {
-		const t = build([task(1, "completed"), task(2, "completed"), task(3, "pending"), task(4, "pending"), task(5, "pending")]);
+		const t = build([
+			task(1, "completed"),
+			task(2, "completed"),
+			task(3, "pending"),
+			task(4, "pending"),
+			task(5, "pending"),
+		]);
 		t.overlay.update();
 		expect(t.render()[0]).toBe("● Todos (2/5)");
 		expect(t.render().filter((l) => /Task [12]/.test(l))).toHaveLength(2);
@@ -141,30 +163,44 @@ describe("an all-completed list keeps a compact summary", () => {
 });
 
 describe("sync mode headings keep OpenSpec and incidental progress apart", () => {
-	const tasks = [task(1, "completed"), task(2, "pending"), task(3, "pending"), task(1_000_001, "completed"), task(1_000_002, "pending")];
+	const tasks = [
+		task(1, "completed"),
+		task(2, "pending"),
+		task(3, "pending"),
+		task(1_000_001, "completed"),
+		task(1_000_002, "pending"),
+	];
 
 	it("labels each, using OpenSpec's own numbers", () => {
-		const t = build(tasks, { sections: { openspec: { complete: 1, total: 3, freshness: "fresh" }, incidental: { complete: 1, total: 2 } } });
+		const t = build(tasks, {
+			sections: { openspec: { complete: 1, total: 3, freshness: "fresh" }, incidental: { complete: 1, total: 2 } },
+		});
 		t.overlay.update();
 		expect(t.render()[0]).toBe("● Todos · OpenSpec 1/3 · incidental 1/2");
 	});
 
 	it("omits the incidental label when there are none", () => {
-		const t = build(tasks.slice(0, 3), { sections: { openspec: { complete: 1, total: 3, freshness: "fresh" }, incidental: { complete: 0, total: 0 } } });
+		const t = build(tasks.slice(0, 3), {
+			sections: { openspec: { complete: 1, total: 3, freshness: "fresh" }, incidental: { complete: 0, total: 0 } },
+		});
 		t.overlay.update();
 		expect(t.render()[0]).toBe("● Todos · OpenSpec 1/3");
 	});
 
 	it("marks a stale or unavailable view in the heading", () => {
 		for (const freshness of ["stale", "unavailable"] as const) {
-			const t = build(tasks.slice(0, 3), { sections: { openspec: { complete: 1, total: 3, freshness }, incidental: { complete: 0, total: 0 } } });
+			const t = build(tasks.slice(0, 3), {
+				sections: { openspec: { complete: 1, total: 3, freshness }, incidental: { complete: 0, total: 0 } },
+			});
 			t.overlay.update();
 			expect(t.render()[0]).toBe(`● Todos · OpenSpec 1/3 ⚠ ${freshness}`);
 		}
 	});
 
 	it("keeps both totals when completed rows are hidden", () => {
-		const t = build(tasks, { sections: { openspec: { complete: 1, total: 3, freshness: "fresh" }, incidental: { complete: 1, total: 2 } } });
+		const t = build(tasks, {
+			sections: { openspec: { complete: 1, total: 3, freshness: "fresh" }, incidental: { complete: 1, total: 2 } },
+		});
 		t.overlay.update();
 		t.render();
 		t.overlay.hideCompletedTasksFromPreviousTurn();
@@ -213,14 +249,23 @@ describe("rows say what the task is doing, not just what its status is", () => {
 	});
 
 	it("waiting and failure reasons are shown exactly as the agent supplied them", () => {
-		const t = build([task(1, "in_progress", { waitingReason: "approval from Sam" }), task(2, "pending", { failureReason: "review failed" })], { run: "running" });
+		const t = build(
+			[
+				task(1, "in_progress", { waitingReason: "approval from Sam" }),
+				task(2, "pending", { failureReason: "review failed" }),
+			],
+			{ run: "running" },
+		);
 		t.overlay.update();
 		expect(row(t.render(), 1)).toContain("waiting: approval from Sam");
 		expect(row(t.render(), 2)).toContain("failed: review failed");
 	});
 
 	it("a reason does not make a stopped task look active, and completed tasks hide their old reasons", () => {
-		const t = build([task(1, "in_progress", { waitingReason: "input" }), task(2, "completed", { failureReason: "old" })], { run: "idle" });
+		const t = build(
+			[task(1, "in_progress", { waitingReason: "input" }), task(2, "completed", { failureReason: "old" })],
+			{ run: "idle" },
+		);
 		t.overlay.update();
 		expect(row(t.render(), 1)).toContain("Idle");
 		expect(row(t.render(), 1)).not.toContain("◐");
@@ -264,7 +309,12 @@ describe("repainting", () => {
 	it("reregister throws when the host cannot register, and the next update retries", () => {
 		const t = build([task(1, "pending")]);
 		let fail = true;
-		const host: any = { theme, setWidget: () => { if (fail) throw new Error("host gone"); } };
+		const host: any = {
+			theme,
+			setWidget: () => {
+				if (fail) throw new Error("host gone");
+			},
+		};
 		expect(() => t.overlay.reregister(host)).toThrow("host gone");
 		expect(t.overlay.isRegistered()).toBe(false);
 		fail = false;

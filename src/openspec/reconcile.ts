@@ -100,14 +100,23 @@ export function reconcile(input: ReconcileInput): ReconcileResult {
 	const agree = viewsAgree(text, cli);
 
 	const diagnostics: string[] = [];
-	if (!agree) diagnostics.push("The task file does not match the CLI's view (it may have changed between reads). Refresh before writing.");
+	if (!agree)
+		diagnostics.push(
+			"The task file does not match the CLI's view (it may have changed between reads). Refresh before writing.",
+		);
 	const textless = cli.total - cli.tasks.length;
 	if (textless > 0) {
 		const plural = textless === 1;
-		diagnostics.push(`${textless} ${plural ? "checkbox without text is" : "checkboxes without text are"} counted by OpenSpec but cannot be tracked. Add wording in tasks.md.`);
+		diagnostics.push(
+			`${textless} ${plural ? "checkbox without text is" : "checkboxes without text are"} counted by OpenSpec but cannot be tracked. Add wording in tasks.md.`,
+		);
 	}
 
-	const drafts = cli.tasks.map((task) => ({ task, fingerprint: fingerprint(task.description), label: labelOf(task.description) }));
+	const drafts = cli.tasks.map((task) => ({
+		task,
+		fingerprint: fingerprint(task.description),
+		label: labelOf(task.description),
+	}));
 	const byWording = group(drafts, (d) => d.fingerprint);
 	const byLabel = group(drafts, (d) => d.label);
 	const previousByWording = group(previous, (r) => r.fingerprint);
@@ -131,9 +140,24 @@ export function reconcile(input: ReconcileInput): ReconcileResult {
 
 		let mapping: Mapping;
 		if (!agree) mapping = { ok: false, reason: "The task file and the CLI disagree. Refresh and retry." };
-		else if (wordingCount > 1) mapping = { ok: false, reason: `duplicate task wording (${wordingCount} identical rows). Make each task unique in tasks.md.` };
-		else if (labelCount > 1) mapping = { ok: false, reason: `duplicate task label ${draft.label} (${labelCount} rows). Make each label unique in tasks.md.` };
-		else mapping = { ok: true, file: file.path, fingerprint: draft.fingerprint, ...(draft.label ? { label: draft.label } : {}), revision };
+		else if (wordingCount > 1)
+			mapping = {
+				ok: false,
+				reason: `duplicate task wording (${wordingCount} identical rows). Make each task unique in tasks.md.`,
+			};
+		else if (labelCount > 1)
+			mapping = {
+				ok: false,
+				reason: `duplicate task label ${draft.label} (${labelCount} rows). Make each label unique in tasks.md.`,
+			};
+		else
+			mapping = {
+				ok: true,
+				file: file.path,
+				fingerprint: draft.fingerprint,
+				...(draft.label ? { label: draft.label } : {}),
+				revision,
+			};
 
 		const activity = unique && mapping.ok ? carryActivity(reuse?.activity, draft.task.done) : undefined;
 		return {
@@ -148,6 +172,9 @@ export function reconcile(input: ReconcileInput): ReconcileResult {
 		};
 	});
 
-	const removed = previous.filter((r) => !used.has(r.id)).map((r) => r.id).toSorted((a, b) => a - b);
+	const removed = previous
+		.filter((r) => !used.has(r.id))
+		.map((r) => r.id)
+		.toSorted((a, b) => a - b);
 	return { rows, nextId, revision, removed, diagnostics, writable: agree };
 }

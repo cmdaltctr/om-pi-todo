@@ -1,9 +1,20 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { __resetRunStates, evictRunState, getRunState, runStateFromAgentEnd, setRunState } from "../src/state/run-state.js";
+import {
+	__resetRunStates,
+	evictRunState,
+	getRunState,
+	runStateFromAgentEnd,
+	setRunState,
+} from "../src/state/run-state.js";
 import { presentTask, unresolvedBlockers } from "../src/view/presentation.js";
 import type { Task } from "../src/tool/types.js";
 
-const task = (id: number, status: Task["status"], over: Partial<Task> = {}): Task => ({ id, subject: `T${id}`, status, ...over });
+const task = (id: number, status: Task["status"], over: Partial<Task> = {}): Task => ({
+	id,
+	subject: `T${id}`,
+	status,
+	...over,
+});
 const by = (...tasks: Task[]) => new Map(tasks.map((t) => [t.id, t]));
 const present = (t: Task, all: Task[], run: "running" | "idle" | "paused") => presentTask(t, by(...all), run);
 
@@ -36,17 +47,26 @@ describe("run state from the end of an agent run", () => {
 
 	it("looks at the last assistant message only", () => {
 		expect(runStateFromAgentEnd([assistant("aborted"), { role: "user" }, assistant("stop")])).toBe("idle");
-		expect(runStateFromAgentEnd([assistant("stop"), { role: "toolResult" }, assistant("aborted"), { role: "toolResult" }])).toBe("paused");
+		expect(
+			runStateFromAgentEnd([assistant("stop"), { role: "toolResult" }, assistant("aborted"), { role: "toolResult" }]),
+		).toBe("paused");
 	});
 
 	it("is idle when there is nothing to read", () => {
-		for (const bad of [[], undefined, null, "x", [null], [{}], [{ role: "assistant" }]]) expect(runStateFromAgentEnd(bad as never)).toBe("idle");
+		for (const bad of [[], undefined, null, "x", [null], [{}], [{ role: "assistant" }]])
+			expect(runStateFromAgentEnd(bad as never)).toBe("idle");
 	});
 });
 
 describe("blockers", () => {
 	it("lists only dependencies that exist and are not finished", () => {
-		const all = [task(1, "completed"), task(2, "pending"), task(3, "deleted"), task(4, "in_progress"), task(5, "pending", { blockedBy: [1, 2, 3, 4, 99] })];
+		const all = [
+			task(1, "completed"),
+			task(2, "pending"),
+			task(3, "deleted"),
+			task(4, "in_progress"),
+			task(5, "pending", { blockedBy: [1, 2, 3, 4, 99] }),
+		];
 		expect(unresolvedBlockers(all[4], by(...all))).toEqual([2, 4]);
 	});
 
@@ -76,9 +96,16 @@ describe("presenting a task", () => {
 		const blocker = task(2, "pending");
 		const t = task(1, "in_progress", { blockedBy: [2], activeForm: "x" });
 		for (const run of ["running", "idle", "paused"] as const) {
-			expect(present(t, [t, blocker], run)).toEqual({ kind: "blocked", label: "Blocked by #2", running: false, blockers: [2] });
+			expect(present(t, [t, blocker], run)).toEqual({
+				kind: "blocked",
+				label: "Blocked by #2",
+				running: false,
+				blockers: [2],
+			});
 		}
-		expect(present(task(1, "pending", { blockedBy: [2, 3] }), [blocker, task(3, "in_progress")], "idle")).toMatchObject({ label: "Blocked by #2, #3" });
+		expect(present(task(1, "pending", { blockedBy: [2, 3] }), [blocker, task(3, "in_progress")], "idle")).toMatchObject(
+			{ label: "Blocked by #2, #3" },
+		);
 	});
 
 	it("a finished or missing dependency does not block", () => {

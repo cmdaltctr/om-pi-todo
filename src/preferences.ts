@@ -164,12 +164,20 @@ export async function loadPreferences(): Promise<LoadResult> {
 		return { preferences, source: "current", diagnostics };
 	}
 	if (current.kind === "bad") {
-		return { preferences: { ...DEFAULT_PREFERENCES }, source: current.unreadable ? "default" : "current", diagnostics: [current.problem] };
+		return {
+			preferences: { ...DEFAULT_PREFERENCES },
+			source: current.unreadable ? "default" : "current",
+			diagnostics: [current.problem],
+		};
 	}
 	const legacy = await readLegacy();
 	if (!legacy) return { preferences: { ...DEFAULT_PREFERENCES }, source: "default", diagnostics: [] };
 	const { preferences, diagnostics } = normalise(legacy.fields, false);
-	return { preferences, source: legacy.diagnostics.length ? "default" : "legacy", diagnostics: [...legacy.diagnostics, ...diagnostics] };
+	return {
+		preferences,
+		source: legacy.diagnostics.length ? "default" : "legacy",
+		diagnostics: [...legacy.diagnostics, ...diagnostics],
+	};
 }
 
 // ---------------------------------------------------------------------------
@@ -182,7 +190,8 @@ function copy(preferences: Preferences): Preferences {
 	const result: Preferences = { ...preferences };
 	if (preferences.guidance) {
 		result.guidance = { ...preferences.guidance };
-		if (preferences.guidance.promptGuidelines) result.guidance.promptGuidelines = [...preferences.guidance.promptGuidelines];
+		if (preferences.guidance.promptGuidelines)
+			result.guidance.promptGuidelines = [...preferences.guidance.promptGuidelines];
 	}
 	return result;
 }
@@ -222,8 +231,10 @@ export type PreferencesPatch = Partial<Pick<Preferences, "mode" | "maxWidgetLine
 
 function checkPatch(patch: PreferencesPatch): string | undefined {
 	if (patch.mode !== undefined && !MODES.includes(patch.mode)) return `Invalid mode ${JSON.stringify(patch.mode)}`;
-	if (patch.maxWidgetLines !== undefined && !validLineBudget(patch.maxWidgetLines)) return `maxWidgetLines must be a number of at least ${MIN_WIDGET_LINES}`;
-	if (patch.collapseKey !== undefined && normaliseCollapseKey(patch.collapseKey) === undefined) return "Invalid collapseKey";
+	if (patch.maxWidgetLines !== undefined && !validLineBudget(patch.maxWidgetLines))
+		return `maxWidgetLines must be a number of at least ${MIN_WIDGET_LINES}`;
+	if (patch.collapseKey !== undefined && normaliseCollapseKey(patch.collapseKey) === undefined)
+		return "Invalid collapseKey";
 	return undefined;
 }
 
@@ -256,7 +267,8 @@ async function saveNow(patch: PreferencesPatch): Promise<SaveResult> {
 	else base = (await readLegacy())?.fields ?? {};
 
 	const next: Raw = { ...base };
-	for (const [key, value] of Object.entries(patch)) if (value !== undefined) next[key] = key === "collapseKey" ? normaliseCollapseKey(value) : value;
+	for (const [key, value] of Object.entries(patch))
+		if (value !== undefined) next[key] = key === "collapseKey" ? normaliseCollapseKey(value) : value;
 
 	try {
 		await writeAtomically(path, next);

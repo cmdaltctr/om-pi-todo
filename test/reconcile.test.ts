@@ -21,7 +21,8 @@ function run(content: string, previous: readonly LinkedRow[] = [], nextId = 1, c
 const md = (...lines: string[]) => `${lines.join("\n")}\n`;
 const ids = (rows: readonly LinkedRow[]) => rows.map((r) => r.id);
 const words = (rows: readonly LinkedRow[]) => rows.map((r) => r.description);
-const withActivity = (rows: readonly LinkedRow[], id: number, activity: LinkedRow["activity"]) => rows.map((r) => (r.id === id ? { ...r, activity } : r));
+const withActivity = (rows: readonly LinkedRow[], id: number, activity: LinkedRow["activity"]) =>
+	rows.map((r) => (r.id === id ? { ...r, activity } : r));
 
 describe("first import", () => {
 	it("numbers rows from 1 in file order, with authoritative wording and state", () => {
@@ -71,10 +72,22 @@ describe("stable local ids across refreshes", () => {
 
 	it("keeps ids and session activity for unchanged rows", () => {
 		const f = first();
-		const active = withActivity(f.rows, 2, { status: "in_progress", activeForm: "working on B", owner: "me", blockedBy: [1], metadata: { k: 1 } });
+		const active = withActivity(f.rows, 2, {
+			status: "in_progress",
+			activeForm: "working on B",
+			owner: "me",
+			blockedBy: [1],
+			metadata: { k: 1 },
+		});
 		const again = run(md("- [ ] A", "- [ ] B", "- [ ] C"), active, f.nextId);
 		expect(ids(again.rows)).toEqual([1, 2, 3]);
-		expect(again.rows[1].activity).toEqual({ status: "in_progress", activeForm: "working on B", owner: "me", blockedBy: [1], metadata: { k: 1 } });
+		expect(again.rows[1].activity).toEqual({
+			status: "in_progress",
+			activeForm: "working on B",
+			owner: "me",
+			blockedBy: [1],
+			metadata: { k: 1 },
+		});
 	});
 
 	it("follows wording when rows are reordered, and updates CLI row numbers", () => {
@@ -146,7 +159,13 @@ describe("stable local ids across refreshes", () => {
 describe("completion comes from the file", () => {
 	it("shows an externally checked task as done and clears its in-progress activity", () => {
 		const f = run(md("- [ ] A"));
-		const active = withActivity(f.rows, 1, { status: "in_progress", activeForm: "A", owner: "me", blockedBy: [], metadata: { k: 1 } });
+		const active = withActivity(f.rows, 1, {
+			status: "in_progress",
+			activeForm: "A",
+			owner: "me",
+			blockedBy: [],
+			metadata: { k: 1 },
+		});
 		const again = run(md("- [x] A"), active, f.nextId);
 		expect(again.rows[0].done).toBe(true);
 		expect(again.rows[0].activity).toEqual({ owner: "me", blockedBy: [], metadata: { k: 1 } });
@@ -208,7 +227,9 @@ describe("ambiguous mappings are refused", () => {
 		const f = run(md("- [ ] Real", "- [ ]", "- []"));
 		expect(f.rows).toHaveLength(1);
 		expect(f.rows[0].mapping.ok).toBe(true);
-		expect(f.diagnostics).toEqual(["2 checkboxes without text are counted by OpenSpec but cannot be tracked. Add wording in tasks.md."]);
+		expect(f.diagnostics).toEqual([
+			"2 checkboxes without text are counted by OpenSpec but cannot be tracked. Add wording in tasks.md.",
+		]);
 		expect(f.writable).toBe(true);
 	});
 });

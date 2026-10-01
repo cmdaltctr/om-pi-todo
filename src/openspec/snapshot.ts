@@ -108,7 +108,8 @@ const NOTE_LIMIT = 2000;
 const MAX_NOTES = 10;
 const STATES = ["ready", "blocked", "all_done"] as const;
 
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+	typeof value === "object" && value !== null && !Array.isArray(value);
 const cap = (text: string) => (text.length > NOTE_LIMIT ? `${text.slice(0, NOTE_LIMIT - 1)}…` : text);
 const asText = (value: unknown) => cap(typeof value === "string" ? value : JSON.stringify(value));
 
@@ -132,11 +133,20 @@ function parseApply(json: unknown, bindingRoot: string): ApplyView | Failure {
 	if (typeof total !== "number" || typeof complete !== "number" || typeof remaining !== "number") return bad;
 	if (!STATES.includes(json.state as (typeof STATES)[number])) return bad;
 	if (isRecord(json.root) && typeof json.root.path === "string" && json.root.path !== bindingRoot) {
-		return new Failure(`The CLI now resolves a different planning root (${json.root.path}). Sync is suspended. Choose a change with /todo-settings.`, true);
+		return new Failure(
+			`The CLI now resolves a different planning root (${json.root.path}). Sync is suspended. Choose a change with /todo-settings.`,
+			true,
+		);
 	}
 	const tasks: CliTasks["tasks"][number][] = [];
 	for (const item of json.tasks) {
-		if (!isRecord(item) || typeof item.id !== "string" || typeof item.description !== "string" || typeof item.done !== "boolean") return bad;
+		if (
+			!isRecord(item) ||
+			typeof item.id !== "string" ||
+			typeof item.description !== "string" ||
+			typeof item.done !== "boolean"
+		)
+			return bad;
 		tasks.push({ id: item.id, description: item.description, done: item.done });
 	}
 	const notes: string[] = [];
@@ -165,14 +175,37 @@ export function createSnapshotProvider(deps: SnapshotDeps, sources: SnapshotSour
 	function assemble(sessionId: string): Snapshot {
 		const mode = sources.getMode(sessionId);
 		const ordinary = sources.getOrdinary(sessionId);
-		const base = { mode: mode.mode, linkedNextId: slots.get(sessionId)?.nextId ?? 1, refreshing: (slots.get(sessionId)?.inflight ?? 0) > 0, ordinary, ordinaryCounts: selectTodoCounts({ tasks: [...ordinary], nextId: 1 }), linked: [] as LinkedRow[], notes: [] as string[], writable: false, needsReselect: false };
+		const base = {
+			mode: mode.mode,
+			linkedNextId: slots.get(sessionId)?.nextId ?? 1,
+			refreshing: (slots.get(sessionId)?.inflight ?? 0) > 0,
+			ordinary,
+			ordinaryCounts: selectTodoCounts({ tasks: [...ordinary], nextId: 1 }),
+			linked: [] as LinkedRow[],
+			notes: [] as string[],
+			writable: false,
+			needsReselect: false,
+		};
 		if (mode.mode !== "openspec") return { ...base, freshness: "inactive", diagnostics: [] };
-		if (!mode.binding) return { ...base, freshness: "unbound", needsReselect: true, diagnostics: ["OpenSpec sync is selected but no change is chosen. Run /todo-settings to choose one."] };
+		if (!mode.binding)
+			return {
+				...base,
+				freshness: "unbound",
+				needsReselect: true,
+				diagnostics: ["OpenSpec sync is selected but no change is chosen. Run /todo-settings to choose one."],
+			};
 
 		const committed = slots.get(sessionId)?.committed;
 		const block = slots.get(sessionId)?.block;
-		const sameBinding = committed && committed.binding.root === mode.binding.root && committed.binding.change === mode.binding.change;
-		if (!committed || !sameBinding) return { ...base, binding: mode.binding, freshness: "unavailable", diagnostics: ["The OpenSpec view has not been read yet."] };
+		const sameBinding =
+			committed && committed.binding.root === mode.binding.root && committed.binding.change === mode.binding.change;
+		if (!committed || !sameBinding)
+			return {
+				...base,
+				binding: mode.binding,
+				freshness: "unavailable",
+				diagnostics: ["The OpenSpec view has not been read yet."],
+			};
 		return {
 			...base,
 			binding: mode.binding,
@@ -187,7 +220,10 @@ export function createSnapshotProvider(deps: SnapshotDeps, sources: SnapshotSour
 			changeRoot: committed.changeRoot,
 			schema: committed.schema,
 			notes: committed.notes,
-			diagnostics: block && !committed.diagnostics.includes(block.reason) ? [...committed.diagnostics, block.reason] : committed.diagnostics,
+			diagnostics:
+				block && !committed.diagnostics.includes(block.reason)
+					? [...committed.diagnostics, block.reason]
+					: committed.diagnostics,
 		};
 	}
 
@@ -197,11 +233,19 @@ export function createSnapshotProvider(deps: SnapshotDeps, sources: SnapshotSour
 		const status = await run(["status", "--change", binding.change, "--json"], options);
 		if (!status.ok) {
 			const gone = status.kind === "exit" && /not found/i.test(status.message);
-			return new Failure(gone ? "The bound change no longer exists (moved or archived). Choose another with /todo-settings." : status.message, gone);
+			return new Failure(
+				gone
+					? "The bound change no longer exists (moved or archived). Choose another with /todo-settings."
+					: status.message,
+				gone,
+			);
 		}
 		const sj = status.json;
 		if (isRecord(sj) && isRecord(sj.root) && typeof sj.root.path === "string" && sj.root.path !== binding.root) {
-			return new Failure(`The CLI now resolves a different planning root (${sj.root.path}). Sync is suspended. Choose a change with /todo-settings.`, true);
+			return new Failure(
+				`The CLI now resolves a different planning root (${sj.root.path}). Sync is suspended. Choose a change with /todo-settings.`,
+				true,
+			);
 		}
 		const verdict = checkStatus(sj, { path: binding.root });
 		if (!verdict.supported) return new Failure(`The bound change is not supported: ${verdict.reason}`, true);
@@ -210,9 +254,16 @@ export function createSnapshotProvider(deps: SnapshotDeps, sources: SnapshotSour
 
 		// Resolve links first: a task file or change directory that leads outside the planning root is never read.
 		try {
-			const [realFile, realDir, realRoot] = await Promise.all([realpath(file), realpath(String((sj as Record<string, unknown>).changeRoot)), realpath(binding.root)]);
+			const [realFile, realDir, realRoot] = await Promise.all([
+				realpath(file),
+				realpath(String((sj as Record<string, unknown>).changeRoot)),
+				realpath(binding.root),
+			]);
 			if (!isInside(realRoot, realDir) || !isInside(realDir, realFile)) {
-				return new Failure("The task file resolves outside the confirmed change directory, so it is not read. Fix the link or choose another change with /todo-settings.", true);
+				return new Failure(
+					"The task file resolves outside the confirmed change directory, so it is not read. Fix the link or choose another change with /todo-settings.",
+					true,
+				);
 			}
 		} catch (error) {
 			return new Failure(`The task file path could not be resolved: ${(error as Error).message}`);
@@ -237,11 +288,17 @@ export function createSnapshotProvider(deps: SnapshotDeps, sources: SnapshotSour
 		if (revisionOf(before) !== revisionOf(after)) return "changed";
 
 		const same = (b: Binding) => b.change === binding.change && b.root === binding.root;
-		const previous = s.committed && same(s.committed.binding) ? s.committed.rows : s.seed && same(s.seed.binding) ? s.seed.rows : [];
+		const previous =
+			s.committed && same(s.committed.binding) ? s.committed.rows : s.seed && same(s.seed.binding) ? s.seed.rows : [];
 		const result = reconcile({ previous, nextId: s.nextId, cli: view.cli, file: { path: file, content: before } });
 		s.nextId = result.nextId;
-		const artifacts = Array.isArray(record.artifacts) ? record.artifacts.filter(isRecord).map((a) => ({ id: String(a.id), status: String(a.status) })) : [];
-		const planning = typeof (record.isPlanningComplete ?? record.isComplete) === "boolean" ? { isComplete: (record.isPlanningComplete ?? record.isComplete) as boolean, artifacts } : undefined;
+		const artifacts = Array.isArray(record.artifacts)
+			? record.artifacts.filter(isRecord).map((a) => ({ id: String(a.id), status: String(a.status) }))
+			: [];
+		const planning =
+			typeof (record.isPlanningComplete ?? record.isComplete) === "boolean"
+				? { isComplete: (record.isPlanningComplete ?? record.isComplete) as boolean, artifacts }
+				: undefined;
 		return {
 			binding,
 			freshness: "fresh",
@@ -261,7 +318,10 @@ export function createSnapshotProvider(deps: SnapshotDeps, sources: SnapshotSour
 
 	return {
 		/** Read the bound change and commit the result. Never throws. */
-		async refresh(sessionId: string, options: { signal?: AbortSignal; isCurrent?: () => boolean } = {}): Promise<Snapshot> {
+		async refresh(
+			sessionId: string,
+			options: { signal?: AbortSignal; isCurrent?: () => boolean } = {},
+		): Promise<Snapshot> {
 			const mode = sources.getMode(sessionId);
 			if (mode.mode !== "openspec" || !mode.binding) return assemble(sessionId);
 			const s = slot(sessionId);
@@ -287,11 +347,28 @@ export function createSnapshotProvider(deps: SnapshotDeps, sources: SnapshotSour
 			if (seq > s.committedSeq) {
 				s.committedSeq = seq;
 				if (outcome instanceof Failure) {
-					const last = s.committed && s.committed.binding.root === binding.root && s.committed.binding.change === binding.change ? s.committed : undefined;
+					const last =
+						s.committed && s.committed.binding.root === binding.root && s.committed.binding.change === binding.change
+							? s.committed
+							: undefined;
 					const good = last && last.freshness !== "unavailable" ? last : undefined;
 					s.committed = good
-						? { ...good, freshness: "stale", writable: false, needsReselect: outcome.needsReselect, diagnostics: [outcome.message] }
-						: { binding, freshness: "unavailable", writable: false, needsReselect: outcome.needsReselect, rows: [], notes: [], diagnostics: [outcome.message] };
+						? {
+								...good,
+								freshness: "stale",
+								writable: false,
+								needsReselect: outcome.needsReselect,
+								diagnostics: [outcome.message],
+							}
+						: {
+								binding,
+								freshness: "unavailable",
+								writable: false,
+								needsReselect: outcome.needsReselect,
+								rows: [],
+								notes: [],
+								diagnostics: [outcome.message],
+							};
 				} else {
 					s.committed = outcome;
 					s.seed = undefined;
@@ -335,7 +412,8 @@ export function createSnapshotProvider(deps: SnapshotDeps, sources: SnapshotSour
 			const row = c.rows.find((r) => r.id === id);
 			if (!row || !row.mapping.ok) return false;
 			const { activity: _old, ...rest } = row;
-			const next: LinkedRow = activity && Object.keys(activity).length ? { ...rest, activity: structuredClone(activity) } : rest;
+			const next: LinkedRow =
+				activity && Object.keys(activity).length ? { ...rest, activity: structuredClone(activity) } : rest;
 			c.rows = c.rows.map((r) => (r.id === id ? next : r));
 			return true;
 		},
@@ -346,12 +424,22 @@ export function createSnapshotProvider(deps: SnapshotDeps, sources: SnapshotSour
 			const mode = sources.getMode(sessionId);
 			if (!s || mode.mode !== "openspec" || !mode.binding) return undefined;
 			const same = (b: Binding) => b.change === mode.binding!.change && b.root === mode.binding!.root;
-			const rows = s.committed && same(s.committed.binding) ? s.committed.rows : s.seed && same(s.seed.binding) ? s.seed.rows : undefined;
+			const rows =
+				s.committed && same(s.committed.binding)
+					? s.committed.rows
+					: s.seed && same(s.seed.binding)
+						? s.seed.rows
+						: undefined;
 			if (!rows) return undefined;
 			return {
 				binding: { ...mode.binding },
 				nextId: s.nextId,
-				rows: rows.map((r) => ({ id: r.id, fingerprint: r.fingerprint, ...(r.label ? { label: r.label } : {}), ...(r.activity ? { activity: structuredClone(r.activity) } : {}) })),
+				rows: rows.map((r) => ({
+					id: r.id,
+					fingerprint: r.fingerprint,
+					...(r.label ? { label: r.label } : {}),
+					...(r.activity ? { activity: structuredClone(r.activity) } : {}),
+				})),
 			};
 		},
 

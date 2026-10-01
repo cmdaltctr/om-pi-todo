@@ -32,8 +32,12 @@ describe("list and get read the shared snapshot", () => {
 		expect(notes[0]).toContain("1/3 checked, 2 remaining");
 		expect(notes[0]).toBe(describeSnapshot(snap).join("\n"));
 		const panel = t.runtime.panelState("s1");
-		expect(panel.tasks.map((x) => [x.id, x.status])).toEqual(snap.linked.map((r) => [r.id, r.done ? "completed" : "pending"]));
-		expect(panel.tasks.filter((x: { status: string }) => x.status === "completed")).toHaveLength(snap.implementation!.complete);
+		expect(panel.tasks.map((x) => [x.id, x.status])).toEqual(
+			snap.linked.map((r) => [r.id, r.done ? "completed" : "pending"]),
+		);
+		expect(panel.tasks.filter((x: { status: string }) => x.status === "completed")).toHaveLength(
+			snap.implementation!.complete,
+		);
 	});
 
 	it("reads fresh data before every list, so an external edit is visible at once", async () => {
@@ -61,7 +65,9 @@ describe("list and get read the shared snapshot", () => {
 	it("says which ids exist when an id is not linked, and how to reach incidental tasks", async () => {
 		const t = make(md("- [ ] A"));
 		const r = await t.call({ action: "get", id: 9 });
-		expect(r.text).toBe('Error: #9 is not a linked task (linked ids: #1). To address one of your own tasks, pass scope "incidental".');
+		expect(r.text).toBe(
+			'Error: #9 is not a linked task (linked ids: #1). To address one of your own tasks, pass scope "incidental".',
+		);
 		expect(r.details.error).toBeDefined();
 	});
 
@@ -86,7 +92,9 @@ describe("list and get read the shared snapshot", () => {
 	it("leaves normal-mode sessions on the original path even with a runtime registered", async () => {
 		const t = make(md("- [ ] A"), {}, ["s1", "plain"]);
 		setSessionMode("plain", { mode: "normal" });
-		expect((await t.call({ action: "create", subject: "Plain task" }, "plain")).text).toBe("Created #1: Plain task (pending)");
+		expect((await t.call({ action: "create", subject: "Plain task" }, "plain")).text).toBe(
+			"Created #1: Plain task (pending)",
+		);
 		expect(t.cli.calls).toEqual([]);
 	});
 });
@@ -96,18 +104,29 @@ describe("linked status updates need the current revision", () => {
 		const t = make(md("- [ ] A", "- [ ] B"));
 		const rev = await t.revision();
 		const before = t.disk();
-		const r = await t.call({ action: "update", id: 2, status: "in_progress", activeForm: "working on B", expectedRevision: rev });
+		const r = await t.call({
+			action: "update",
+			id: 2,
+			status: "in_progress",
+			activeForm: "working on B",
+			expectedRevision: rev,
+		});
 		expect(r.text).toBe(`Updated #2 (pending → in_progress) (revision ${rev})`);
 		expect(t.disk().equals(before)).toBe(true);
 		expect((await t.call({ action: "list" })).text).toContain("[in_progress] #2 B (working on B)");
-		expect(t.runtime.panelState("s1").tasks.find((x) => x.id === 2)).toMatchObject({ status: "in_progress", activeForm: "working on B" });
+		expect(t.runtime.panelState("s1").tasks.find((x) => x.id === 2)).toMatchObject({
+			status: "in_progress",
+			activeForm: "working on B",
+		});
 	});
 
 	it("requires a revision and names the current one", async () => {
 		const t = make(md("- [ ] A"));
 		const rev = await t.revision();
 		const r = await t.call({ action: "update", id: 1, status: "in_progress" });
-		expect(r.text).toBe(`Error: expectedRevision is required to change a linked task's status. The current revision is "${rev}".`);
+		expect(r.text).toBe(
+			`Error: expectedRevision is required to change a linked task's status. The current revision is "${rev}".`,
+		);
 		expect(t.runtime.provider.getSnapshot("s1").linked[0].activity).toBeUndefined();
 	});
 
@@ -118,7 +137,9 @@ describe("linked status updates need the current revision", () => {
 		const edited = t.disk();
 		for (const status of ["in_progress", "completed"]) {
 			const r = await t.call({ action: "update", id: 2, status, expectedRevision: old });
-			expect(r.text).toMatch(/^Error: The task file changed since you last read it .* Run list again and retry with the new revision\.$/);
+			expect(r.text).toMatch(
+				/^Error: The task file changed since you last read it .* Run list again and retry with the new revision\.$/,
+			);
 		}
 		expect(t.disk().equals(edited)).toBe(true);
 	});
@@ -128,7 +149,9 @@ describe("linked status updates need the current revision", () => {
 		const rev = await t.revision();
 		const r = await t.call({ action: "update", id: 2, status: "completed", expectedRevision: rev });
 		expect(t.disk().toString()).toBe(md("- [x] 1.1 Done", "- [x] 1.2 Open", "- [ ] 1.3 Later"));
-		expect(r.text).toMatch(/^Updated #2 \(pending → completed\)\. The checkbox was written and the OpenSpec CLI confirmed this task as done\. Revision [0-9a-f]{16}\. OpenSpec tasks: 2\/3 checked \(recorded progress; it does not show that tests passed\)\.$/);
+		expect(r.text).toMatch(
+			/^Updated #2 \(pending → completed\)\. The checkbox was written and the OpenSpec CLI confirmed this task as done\. Revision [0-9a-f]{16}\. OpenSpec tasks: 2\/3 checked \(recorded progress; it does not show that tests passed\)\.$/,
+		);
 		expect(r.details.error).toBeUndefined();
 		const after = t.runtime.provider.getSnapshot("s1");
 		expect(after.revision).not.toBe(rev);
@@ -139,7 +162,14 @@ describe("linked status updates need the current revision", () => {
 	it("completing an in-progress task clears its in-progress activity but keeps owner and reasons", async () => {
 		const t = make(md("- [ ] A"));
 		let rev = await t.revision();
-		await t.call({ action: "update", id: 1, status: "in_progress", activeForm: "a", owner: "me", expectedRevision: rev });
+		await t.call({
+			action: "update",
+			id: 1,
+			status: "in_progress",
+			activeForm: "a",
+			owner: "me",
+			expectedRevision: rev,
+		});
 		rev = await t.revision();
 		await t.call({ action: "update", id: 1, status: "completed", expectedRevision: rev });
 		expect(t.runtime.provider.getSnapshot("s1").linked[0]).toMatchObject({ done: true, activity: { owner: "me" } });
@@ -153,7 +183,13 @@ describe("linked status updates need the current revision", () => {
 	});
 
 	it("reports a failed write as an error and leaves the task incomplete everywhere", async () => {
-		const t = make(md("- [ ] A"), { fs: { rename: async () => { throw Object.assign(new Error("disk full"), { code: "ENOSPC" }); } } });
+		const t = make(md("- [ ] A"), {
+			fs: {
+				rename: async () => {
+					throw Object.assign(new Error("disk full"), { code: "ENOSPC" });
+				},
+			},
+		});
 		const rev = await t.revision();
 		const r = await t.call({ action: "update", id: 1, status: "completed", expectedRevision: rev });
 		expect(r.text).toMatch(/^Error: The task file could not be written: disk full/);
@@ -182,7 +218,9 @@ describe("linked status updates need the current revision", () => {
 		let n = 0;
 		t.cli.hooks.apply = () => (++n === 3 ? { ok: false, kind: "timeout", message: "timed out" } : undefined); // refresh, writer refresh, then the confirming read
 		const r = await t.call({ action: "update", id: 1, status: "completed", expectedRevision: rev });
-		expect(r.text).toMatch(/^Error: The checkbox for task #1 was written, but the OpenSpec view could not be refreshed/);
+		expect(r.text).toMatch(
+			/^Error: The checkbox for task #1 was written, but the OpenSpec view could not be refreshed/,
+		);
 		expect(r.text).toContain("Do not repeat the completion.");
 		expect(r.details.error).toBeDefined();
 		expect(t.disk().toString()).toBe(md("- [x] A", "- [ ] B"));
@@ -196,12 +234,18 @@ describe("linked status updates need the current revision", () => {
 			return undefined;
 		};
 		const r = await t.call({ action: "update", id: 1, status: "in_progress", expectedRevision: rev });
-		expect(r.text).toBe("Error: The session's binding changed while this update was running. Nothing was applied. Retry.");
+		expect(r.text).toBe(
+			"Error: The session's binding changed while this update was running. Nothing was applied. Retry.",
+		);
 		expect(t.runtime.provider.getSnapshot("s1").linked[0].activity).toBeUndefined();
 	});
 
 	it("reports a repaint problem as a warning on a completed write", async () => {
-		const t = make(md("- [ ] A"), { onRepaint: () => { throw new Error("widget gone"); } });
+		const t = make(md("- [ ] A"), {
+			onRepaint: () => {
+				throw new Error("widget gone");
+			},
+		});
 		const rev = await t.revision();
 		const r = await t.call({ action: "update", id: 1, status: "completed", expectedRevision: rev });
 		expect(r.text).toContain("CLI confirmed this task as done");
@@ -213,7 +257,9 @@ describe("linked status updates need the current revision", () => {
 		const t = make(md("- [x] A"));
 		const rev = await t.revision();
 		for (const status of ["pending", "in_progress"]) {
-			expect((await t.call({ action: "update", id: 1, status, expectedRevision: rev })).text).toBe("Error: #1 is already completed in tasks.md. Reopen it by editing the file, then refresh.");
+			expect((await t.call({ action: "update", id: 1, status, expectedRevision: rev })).text).toBe(
+				"Error: #1 is already completed in tasks.md. Reopen it by editing the file, then refresh.",
+			);
 		}
 		expect(t.disk().toString()).toBe(md("- [x] A"));
 	});
@@ -240,7 +286,9 @@ describe("linked status updates need the current revision", () => {
 		const rev = await t.revision();
 		t.cli.hooks.apply = () => ({ ok: false, kind: "timeout", message: "timed out" });
 		const r = await t.call({ action: "update", id: 1, status: "in_progress", expectedRevision: rev });
-		expect(r.text).toMatch(/^Error: Linked tasks cannot be changed now: timed out\. Run \/todos refresh, then retry\.$/);
+		expect(r.text).toMatch(
+			/^Error: Linked tasks cannot be changed now: timed out\. Run \/todos refresh, then retry\.$/,
+		);
 	});
 });
 
@@ -249,10 +297,17 @@ describe("protected fields", () => {
 		const t = make(md("- [ ] A"));
 		const rev = await t.revision();
 		const before = t.disk();
-		const msg = "Linked task wording is owned by tasks.md and cannot be changed here. Revise the OpenSpec plan (for example with /opsx-update), then refresh.";
-		expect((await t.call({ action: "update", id: 1, subject: "Renamed", expectedRevision: rev })).text).toBe(`Error: ${msg}`);
-		expect((await t.call({ action: "update", id: 1, description: "new", expectedRevision: rev })).text).toBe(`Error: ${msg}`);
-		expect((await t.call({ action: "update", id: 1, status: "deleted", expectedRevision: rev })).text).toBe(`Error: Linked tasks cannot be deleted here. ${msg}`);
+		const msg =
+			"Linked task wording is owned by tasks.md and cannot be changed here. Revise the OpenSpec plan (for example with /opsx-update), then refresh.";
+		expect((await t.call({ action: "update", id: 1, subject: "Renamed", expectedRevision: rev })).text).toBe(
+			`Error: ${msg}`,
+		);
+		expect((await t.call({ action: "update", id: 1, description: "new", expectedRevision: rev })).text).toBe(
+			`Error: ${msg}`,
+		);
+		expect((await t.call({ action: "update", id: 1, status: "deleted", expectedRevision: rev })).text).toBe(
+			`Error: Linked tasks cannot be deleted here. ${msg}`,
+		);
 		expect((await t.call({ action: "delete", id: 1 })).text).toBe(`Error: Linked tasks cannot be deleted here. ${msg}`);
 		expect(t.disk().equals(before)).toBe(true);
 		expect(t.runtime.provider.getSnapshot("s1").linked).toHaveLength(1);
@@ -260,13 +315,17 @@ describe("protected fields", () => {
 
 	it("rejects an update with nothing to change", async () => {
 		const t = make(md("- [ ] A"));
-		expect((await t.call({ action: "update", id: 1 })).text).toMatch(/^Error: update requires at least one mutable field: status, activeForm/);
+		expect((await t.call({ action: "update", id: 1 })).text).toMatch(
+			/^Error: update requires at least one mutable field: status, activeForm/,
+		);
 	});
 
 	it("refuses changes to rows that cannot be mapped to one checkbox", async () => {
 		const t = make(md("- [ ] Same", "- [ ] Same"));
 		const rev = await t.revision();
-		expect((await t.call({ action: "update", id: 1, status: "in_progress", expectedRevision: rev })).text).toMatch(/^Error: Task #1 cannot be changed: duplicate task wording/);
+		expect((await t.call({ action: "update", id: 1, status: "in_progress", expectedRevision: rev })).text).toMatch(
+			/^Error: Task #1 cannot be changed: duplicate task wording/,
+		);
 		expect((await t.call({ action: "update", id: 1, owner: "me" })).text).toMatch(/cannot be changed/);
 	});
 });
@@ -275,7 +334,18 @@ describe("activity without a status", () => {
 	it("owner, reasons, metadata and dependencies are session-only and need no revision", async () => {
 		const t = make(md("- [ ] A", "- [ ] B"));
 		const before = t.disk();
-		expect((await t.call({ action: "update", id: 2, owner: "me", waitingReason: "approval", metadata: { k: 1 }, addBlockedBy: [1] })).text).toMatch(/^Updated #2 \(revision [0-9a-f]{16}\)$/);
+		expect(
+			(
+				await t.call({
+					action: "update",
+					id: 2,
+					owner: "me",
+					waitingReason: "approval",
+					metadata: { k: 1 },
+					addBlockedBy: [1],
+				})
+			).text,
+		).toMatch(/^Updated #2 \(revision [0-9a-f]{16}\)$/);
 		const row = t.runtime.provider.getSnapshot("s1").linked[1];
 		expect(row.activity).toEqual({ owner: "me", waitingReason: "approval", metadata: { k: 1 }, blockedBy: [1] });
 		expect(t.disk().equals(before)).toBe(true);
@@ -285,9 +355,15 @@ describe("activity without a status", () => {
 	it("validates dependencies: missing task, itself, cycles", async () => {
 		const t = make(md("- [ ] A", "- [ ] B"));
 		await t.call({ action: "update", id: 2, addBlockedBy: [1] });
-		expect((await t.call({ action: "update", id: 1, addBlockedBy: [2] })).text).toBe("Error: addBlockedBy would create a cycle in the blockedBy graph");
-		expect((await t.call({ action: "update", id: 1, addBlockedBy: [1] })).text).toBe("Error: cannot block #1 on itself");
-		expect((await t.call({ action: "update", id: 1, addBlockedBy: [9] })).text).toBe("Error: addBlockedBy: #9 not found");
+		expect((await t.call({ action: "update", id: 1, addBlockedBy: [2] })).text).toBe(
+			"Error: addBlockedBy would create a cycle in the blockedBy graph",
+		);
+		expect((await t.call({ action: "update", id: 1, addBlockedBy: [1] })).text).toBe(
+			"Error: cannot block #1 on itself",
+		);
+		expect((await t.call({ action: "update", id: 1, addBlockedBy: [9] })).text).toBe(
+			"Error: addBlockedBy: #9 not found",
+		);
 	});
 
 	it("clears reasons with empty strings and reports an unchanged update", async () => {
@@ -325,14 +401,18 @@ describe("incidental tasks", () => {
 	it("creation needs the incidental scope", async () => {
 		const t = make(md("- [ ] A"));
 		const r = await t.call({ action: "create", subject: "Anything" });
-		expect(r.text).toMatch(/^Error: In OpenSpec sync mode, implementation work uses the imported tasks shown by list\./);
+		expect(r.text).toMatch(
+			/^Error: In OpenSpec sync mode, implementation work uses the imported tasks shown by list\./,
+		);
 		expect(getState("s1").tasks).toEqual([]);
 	});
 
 	it("creation needs a reason", async () => {
 		const t = make(md("- [ ] A"));
 		for (const reason of [undefined, "", "   "]) {
-			expect((await t.call({ action: "create", subject: "X", scope: "incidental", reason })).text).toBe("Error: An incidental task needs a reason. Pass reason: why this temporary step is needed.");
+			expect((await t.call({ action: "create", subject: "X", scope: "incidental", reason })).text).toBe(
+				"Error: An incidental task needs a reason. Pass reason: why this temporary step is needed.",
+			);
 		}
 		expect(getState("s1").tasks).toEqual([]);
 	});
@@ -340,7 +420,12 @@ describe("incidental tasks", () => {
 	it("tracks a temporary step separately, with its reason, leaving OpenSpec numbers alone", async () => {
 		const t = make(md("- [x] A", "- [ ] B"));
 		const before = t.disk();
-		const created = await t.call({ action: "create", subject: "Debug flaky test", scope: "incidental", reason: "investigating a failure" });
+		const created = await t.call({
+			action: "create",
+			subject: "Debug flaky test",
+			scope: "incidental",
+			reason: "investigating a failure",
+		});
 		expect(created.text).toBe("Created #1: Debug flaky test (pending) [incidental]");
 		expect(getState("s1").tasks[0]).toMatchObject({ metadata: { reason: "investigating a failure" } });
 		const list = (await t.call({ action: "list" })).text;
@@ -352,7 +437,14 @@ describe("incidental tasks", () => {
 
 	it("rejects copies of imported tasks by wording, spacing, label and label plus wording", async () => {
 		const t = make(md("- [ ] 3.4 Implement the parser", "- [ ] Write docs"));
-		const copies = ["3.4 Implement the parser", "  3.4   Implement  the parser ", "Implement the parser", "3.4 do it differently", "Write docs", "3.4"];
+		const copies = [
+			"3.4 Implement the parser",
+			"  3.4   Implement  the parser ",
+			"Implement the parser",
+			"3.4 do it differently",
+			"Write docs",
+			"3.4",
+		];
 		for (const subject of copies) {
 			const r = await t.call({ action: "create", subject, scope: "incidental", reason: "x" });
 			expect(r.text, subject).toMatch(/^Error: This looks like a copy of linked task #\d/);
@@ -364,22 +456,38 @@ describe("incidental tasks", () => {
 
 	it("rejects a copy given in the description, and accepts unrelated wording", async () => {
 		const t = make(md("- [ ] Write docs"));
-		expect((await t.call({ action: "create", subject: "Something", description: "Write docs", scope: "incidental", reason: "x" })).text).toMatch(/copy of linked task #1/);
-		expect((await t.call({ action: "create", subject: "Write documentation site", scope: "incidental", reason: "x" })).text).toMatch(/^Created #1/);
+		expect(
+			(
+				await t.call({
+					action: "create",
+					subject: "Something",
+					description: "Write docs",
+					scope: "incidental",
+					reason: "x",
+				})
+			).text,
+		).toMatch(/copy of linked task #1/);
+		expect(
+			(await t.call({ action: "create", subject: "Write documentation site", scope: "incidental", reason: "x" })).text,
+		).toMatch(/^Created #1/);
 	});
 
 	it("checks for copies against the last good rows even when the view is stale", async () => {
 		const t = make(md("- [ ] Write docs"));
 		await t.revision();
 		t.cli.hooks.apply = () => ({ ok: false, kind: "timeout", message: "t" });
-		expect((await t.call({ action: "create", subject: "Write docs", scope: "incidental", reason: "x" })).text).toMatch(/copy of linked task #1/);
+		expect((await t.call({ action: "create", subject: "Write docs", scope: "incidental", reason: "x" })).text).toMatch(
+			/copy of linked task #1/,
+		);
 	});
 
 	it("addresses its own tasks with the incidental scope, separately from linked ids", async () => {
 		const t = make(md("- [ ] Linked one"));
 		await t.call({ action: "create", subject: "Mine", scope: "incidental", reason: "r" });
 		expect((await t.call({ action: "get", id: 1, scope: "incidental" })).text).toBe("#1 [pending] Mine");
-		expect((await t.call({ action: "update", id: 1, status: "in_progress", activeForm: "doing", scope: "incidental" })).text).toBe("Updated #1 (pending → in_progress) [incidental]");
+		expect(
+			(await t.call({ action: "update", id: 1, status: "in_progress", activeForm: "doing", scope: "incidental" })).text,
+		).toBe("Updated #1 (pending → in_progress) [incidental]");
 		expect((await t.call({ action: "get", id: 1 })).text).toMatch(/Linked one/);
 	});
 
@@ -387,7 +495,9 @@ describe("incidental tasks", () => {
 		const t = make(md("- [ ] A"));
 		const before = t.disk();
 		await t.call({ action: "create", subject: "Mine", scope: "incidental", reason: "r" });
-		expect((await t.call({ action: "update", id: 1, status: "completed", scope: "incidental" })).text).toBe("Updated #1 (pending → completed) [incidental]");
+		expect((await t.call({ action: "update", id: 1, status: "completed", scope: "incidental" })).text).toBe(
+			"Updated #1 (pending → completed) [incidental]",
+		);
 		const list = (await t.call({ action: "list" })).text;
 		expect(list).toContain("0/1 checked");
 		expect(list).toContain("[completed] #1 Mine");
@@ -396,7 +506,9 @@ describe("incidental tasks", () => {
 
 	it("labels incidental errors so they are not mistaken for linked ones", async () => {
 		const t = make(md("- [ ] A"));
-		expect((await t.call({ action: "update", id: 7, status: "completed", scope: "incidental" })).text).toBe("Error: (incidental) #7 not found");
+		expect((await t.call({ action: "update", id: 7, status: "completed", scope: "incidental" })).text).toBe(
+			"Error: (incidental) #7 not found",
+		);
 	});
 
 	it("deleting an incidental task leaves linked tasks alone", async () => {
@@ -411,7 +523,9 @@ describe("incidental tasks", () => {
 		const before = t.disk();
 		await t.call({ action: "create", subject: "One", scope: "incidental", reason: "r" });
 		await t.call({ action: "create", subject: "Two", scope: "incidental", reason: "r" });
-		expect((await t.call({ action: "clear" })).text).toBe("Cleared 2 incidental tasks. 2 linked OpenSpec tasks were kept and tasks.md is unchanged.");
+		expect((await t.call({ action: "clear" })).text).toBe(
+			"Cleared 2 incidental tasks. 2 linked OpenSpec tasks were kept and tasks.md is unchanged.",
+		);
 		expect(getState("s1").tasks).toEqual([]);
 		expect((await t.call({ action: "list" })).text).toContain("Linked tasks (from tasks.md):");
 		expect(t.disk().equals(before)).toBe(true);

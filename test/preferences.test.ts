@@ -1,4 +1,14 @@
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+	chmodSync,
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+	statSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -177,7 +187,10 @@ describe("invalid preferences", () => {
 	});
 
 	it("drops malformed guidance fields and keeps valid ones", async () => {
-		write(preferencesPath(), JSON.stringify({ guidance: { promptSnippet: "", promptGuidelines: ["ok", ""], description: "Desc" } }));
+		write(
+			preferencesPath(),
+			JSON.stringify({ guidance: { promptSnippet: "", promptGuidelines: ["ok", ""], description: "Desc" } }),
+		);
 		expect((await loadPreferences()).preferences.guidance).toEqual({ description: "Desc" });
 	});
 
@@ -208,7 +221,11 @@ describe("saving", () => {
 	it("merges into the stored file, keeping unrelated and unknown keys", async () => {
 		write(preferencesPath(), JSON.stringify({ maxWidgetLines: 9, futureKey: { a: 1 } }));
 		await savePreferences({ mode: "openspec" });
-		expect(JSON.parse(readFileSync(preferencesPath(), "utf-8"))).toEqual({ maxWidgetLines: 9, futureKey: { a: 1 }, mode: "openspec" });
+		expect(JSON.parse(readFileSync(preferencesPath(), "utf-8"))).toEqual({
+			maxWidgetLines: 9,
+			futureKey: { a: 1 },
+			mode: "openspec",
+		});
 	});
 
 	it("rejects an invalid patch without writing", async () => {
@@ -224,7 +241,10 @@ describe("saving", () => {
 
 	it("keeps both updates when two saves overlap", async () => {
 		await Promise.all([savePreferences({ mode: "openspec" }), savePreferences({ maxWidgetLines: 30 })]);
-		expect(JSON.parse(readFileSync(preferencesPath(), "utf-8"))).toMatchObject({ mode: "openspec", maxWidgetLines: 30 });
+		expect(JSON.parse(readFileSync(preferencesPath(), "utf-8"))).toMatchObject({
+			mode: "openspec",
+			maxWidgetLines: 30,
+		});
 	});
 });
 
@@ -237,19 +257,22 @@ describe("failed saves", () => {
 		expect(readFileSync(preferencesPath(), "utf-8")).toBe("{ broken");
 	});
 
-	it.skipIf(process.getuid?.() === 0)("reports a failed write, keeps the cache unchanged, and leaves no file", async () => {
-		mkdirSync(join(xdg, "pi-todo"), { recursive: true });
-		chmodSync(join(xdg, "pi-todo"), 0o500); // directory exists, file absent, writing denied
-		try {
-			const result = await savePreferences({ mode: "openspec" });
-			expect(result.ok).toBe(false);
-			expect(result.ok === false && result.error).toMatch(/Could not save/);
-			expect(getPreferences().mode).toBe("normal");
-		} finally {
-			chmodSync(join(xdg, "pi-todo"), 0o700);
-		}
-		expect(readdirSync(join(xdg, "pi-todo"))).toEqual([]);
-	});
+	it.skipIf(process.getuid?.() === 0)(
+		"reports a failed write, keeps the cache unchanged, and leaves no file",
+		async () => {
+			mkdirSync(join(xdg, "pi-todo"), { recursive: true });
+			chmodSync(join(xdg, "pi-todo"), 0o500); // directory exists, file absent, writing denied
+			try {
+				const result = await savePreferences({ mode: "openspec" });
+				expect(result.ok).toBe(false);
+				expect(result.ok === false && result.error).toMatch(/Could not save/);
+				expect(getPreferences().mode).toBe("normal");
+			} finally {
+				chmodSync(join(xdg, "pi-todo"), 0o700);
+			}
+			expect(readdirSync(join(xdg, "pi-todo"))).toEqual([]);
+		},
+	);
 
 	it("reports a path blocked by a file, does not throw, and does not change the cache", async () => {
 		write(join(xdg, "pi-todo"), "a file where the directory should be");

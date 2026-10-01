@@ -20,7 +20,8 @@ const STATUS_CONCURRENCY = 4;
 /** Change names become CLI arguments, so accept only plain slug-like names. */
 const SAFE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+	typeof value === "object" && value !== null && !Array.isArray(value);
 
 /** True when `child` is strictly inside `parent` after normalising both. */
 export function isInside(parent: string, child: string): boolean {
@@ -36,7 +37,10 @@ interface Root {
 
 /** The single tracked task file in a `status --json` result that passed `checkStatus`. */
 export function trackedTaskFile(json: unknown): string | undefined {
-	const tasks = isRecord(json) && isRecord(json.artifactPaths) && isRecord(json.artifactPaths.tasks) ? json.artifactPaths.tasks.existingOutputPaths : undefined;
+	const tasks =
+		isRecord(json) && isRecord(json.artifactPaths) && isRecord(json.artifactPaths.tasks)
+			? json.artifactPaths.tasks.existingOutputPaths
+			: undefined;
 	return Array.isArray(tasks) && typeof tasks[0] === "string" ? tasks[0] : undefined;
 }
 
@@ -58,16 +62,29 @@ function parseList(json: unknown): string[] | undefined {
 }
 
 /** Decide whether one change can be bound, from its `status --json` output. */
-export function checkStatus(json: unknown, root: { path: string }): { supported: true } | { supported: false; reason: string } {
+export function checkStatus(
+	json: unknown,
+	root: { path: string },
+): { supported: true } | { supported: false; reason: string } {
 	const unsupported = (reason: string) => ({ supported: false as const, reason });
-	if (!isRecord(json) || typeof json.schemaName !== "string" || typeof json.changeRoot !== "string") return unsupported("unexpected status output");
-	const tasks = isRecord(json.artifactPaths) && isRecord(json.artifactPaths.tasks) ? json.artifactPaths.tasks.existingOutputPaths : undefined;
-	if (!Array.isArray(tasks) || !tasks.every((t) => typeof t === "string") || !isRecord(json.root) || typeof json.root.path !== "string") {
+	if (!isRecord(json) || typeof json.schemaName !== "string" || typeof json.changeRoot !== "string")
+		return unsupported("unexpected status output");
+	const tasks =
+		isRecord(json.artifactPaths) && isRecord(json.artifactPaths.tasks)
+			? json.artifactPaths.tasks.existingOutputPaths
+			: undefined;
+	if (
+		!Array.isArray(tasks) ||
+		!tasks.every((t) => typeof t === "string") ||
+		!isRecord(json.root) ||
+		typeof json.root.path !== "string"
+	) {
 		return unsupported("unexpected status output");
 	}
 	if (json.root.path !== root.path) return unsupported(`planning root mismatch (status used ${json.root.path})`);
 	if (!isInside(root.path, json.changeRoot)) return unsupported("change directory is outside the planning root");
-	if (json.schemaName !== SUPPORTED_SCHEMA) return unsupported(`schema '${json.schemaName}' is not supported (${SUPPORTED_SCHEMA} only)`);
+	if (json.schemaName !== SUPPORTED_SCHEMA)
+		return unsupported(`schema '${json.schemaName}' is not supported (${SUPPORTED_SCHEMA} only)`);
 	if (tasks.length === 0) return unsupported("no tracked task file yet (create tasks.md first)");
 	if (tasks.length > 1) return unsupported("more than one tracked task file");
 	if (!isInside(json.changeRoot, tasks[0])) return unsupported("task file is outside the change directory");
@@ -99,8 +116,12 @@ export function createDiscovery(run: Run = runOpenspecJson): ChangeDiscovery {
 					cancelled = result.message;
 					return;
 				}
-				const verdict = result.ok ? checkStatus(result.json, root) : { supported: false as const, reason: `status failed: ${result.message}` };
-				changes[index] = verdict.supported ? { name, supported: true } : { name, supported: false, reason: verdict.reason };
+				const verdict = result.ok
+					? checkStatus(result.json, root)
+					: { supported: false as const, reason: `status failed: ${result.message}` };
+				changes[index] = verdict.supported
+					? { name, supported: true }
+					: { name, supported: false, reason: verdict.reason };
 			}
 		};
 		await Promise.all(Array.from({ length: Math.min(STATUS_CONCURRENCY, queue.length) }, worker));

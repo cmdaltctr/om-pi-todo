@@ -93,7 +93,10 @@ describe("session lifecycle", () => {
 		await extension(host.pi);
 		await start(host, createCtx("a", [sessionEntry({ mode: "openspec", binding })]));
 		await start(host, createCtx("b", []));
-		await start(host, createCtx("c", [sessionEntry({ mode: "openspec", binding: { root: "/other", change: "other-change" } })]));
+		await start(
+			host,
+			createCtx("c", [sessionEntry({ mode: "openspec", binding: { root: "/other", change: "other-change" } })]),
+		);
 		expect(getSessionMode("a").binding?.change).toBe("add-thing");
 		expect(getSessionMode("b")).toEqual({ mode: "normal" });
 		expect(getSessionMode("c").binding?.change).toBe("other-change");
@@ -127,9 +130,14 @@ describe("session lifecycle", () => {
 		const host = createHost();
 		await extension(host.pi);
 		const notes: Array<[string, string]> = [];
-		const ctx = createCtx("s1", [], { hasUI: true, ui: { notify: (m: string, t: string) => notes.push([m, t]), setWidget: () => undefined } });
+		const ctx = createCtx("s1", [], {
+			hasUI: true,
+			ui: { notify: (m: string, t: string) => notes.push([m, t]), setWidget: () => undefined },
+		});
 		await start(host, ctx);
-		expect(notes).toEqual([["OpenSpec sync is selected but no change is chosen. Run /todo-settings to choose one.", "warning"]]);
+		expect(notes).toEqual([
+			["OpenSpec sync is selected but no change is chosen. Run /todo-settings to choose one.", "warning"],
+		]);
 	});
 
 	it("does not warn for a bound or normal session", async () => {

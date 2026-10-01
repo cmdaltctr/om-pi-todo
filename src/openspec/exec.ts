@@ -12,7 +12,9 @@ import { isAbsolute } from "node:path";
 
 export type ExecFailure = "invalid-cwd" | "spawn" | "exit" | "timeout" | "cancelled" | "output-too-large" | "malformed";
 
-export type ExecResult = { ok: true; json: unknown; stderr: string } | { ok: false; kind: ExecFailure; message: string };
+export type ExecResult =
+	| { ok: true; json: unknown; stderr: string }
+	| { ok: false; kind: ExecFailure; message: string };
 
 export interface ExecOptions {
 	/** Absolute directory the CLI runs in. The CLI resolves its planning root from here. */
@@ -39,7 +41,9 @@ const STDERR_LIMIT = 64 * 1024;
 function errorFromStdout(text: string): string {
 	try {
 		const parsed = JSON.parse(text) as { status?: Array<{ message?: unknown }> };
-		const lines = (parsed.status ?? []).flatMap((item) => (typeof item.message === "string" ? [item.message.split("\n")[0].trim()] : []));
+		const lines = (parsed.status ?? []).flatMap((item) =>
+			typeof item.message === "string" ? [item.message.split("\n")[0].trim()] : [],
+		);
 		if (lines.length > 0) return lines.join("; ");
 	} catch {
 		// not JSON: fall through to the raw text
@@ -53,8 +57,10 @@ export function runOpenspecJson(args: readonly string[], options: ExecOptions): 
 	const maxBytes = options.maxBytes ?? DEFAULT_MAX_BYTES;
 	const killGraceMs = options.killGraceMs ?? DEFAULT_KILL_GRACE_MS;
 
-	if (!isAbsolute(cwd)) return Promise.resolve({ ok: false, kind: "invalid-cwd", message: `Working directory must be absolute: ${cwd}` });
-	if (signal?.aborted) return Promise.resolve({ ok: false, kind: "cancelled", message: "Cancelled before the OpenSpec command started" });
+	if (!isAbsolute(cwd))
+		return Promise.resolve({ ok: false, kind: "invalid-cwd", message: `Working directory must be absolute: ${cwd}` });
+	if (signal?.aborted)
+		return Promise.resolve({ ok: false, kind: "cancelled", message: "Cancelled before the OpenSpec command started" });
 
 	return new Promise<ExecResult>((resolve) => {
 		let settled = false;
@@ -103,14 +109,20 @@ export function runOpenspecJson(args: readonly string[], options: ExecOptions): 
 			if (stderr.length < STDERR_LIMIT) stderr += chunk.toString("utf-8");
 		});
 
-		child.on("error", (error) => finish({ ok: false, kind: "spawn", message: `Could not run ${command}: ${error.message}` }));
+		child.on("error", (error) =>
+			finish({ ok: false, kind: "spawn", message: `Could not run ${command}: ${error.message}` }),
+		);
 
 		child.on("close", (code, killedBy) => {
 			if (stopReason) return finish({ ok: false, ...stopReason });
 			if (code !== 0) {
 				const detail = (stderr.trim() || errorFromStdout(Buffer.concat(stdout).toString("utf-8"))).slice(0, 500);
 				const how = code === null ? `signal ${killedBy}` : `code ${code}`;
-				return finish({ ok: false, kind: "exit", message: `OpenSpec exited with ${how}${detail ? `: ${detail}` : ""}` });
+				return finish({
+					ok: false,
+					kind: "exit",
+					message: `OpenSpec exited with ${how}${detail ? `: ${detail}` : ""}`,
+				});
 			}
 			try {
 				finish({ ok: true, json: JSON.parse(Buffer.concat(stdout).toString("utf-8")), stderr });

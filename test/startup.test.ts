@@ -63,7 +63,11 @@ async function startPi(manifestEdit: (m: Record<string, any>) => void = () => un
 	return startPiWith(base, (_agentDir, pkgDir) => ({ packages: [pkgDir] }), manifestEdit);
 }
 
-async function startPiWith(base: string, settings: (agentDir: string, pkgDir: string) => unknown, manifestEdit: (m: Record<string, any>) => void = () => undefined): Promise<Session> {
+async function startPiWith(
+	base: string,
+	settings: (agentDir: string, pkgDir: string) => unknown,
+	manifestEdit: (m: Record<string, any>) => void = () => undefined,
+): Promise<Session> {
 	const pkgDir = join(base, "pkg");
 	const agentDir = join(base, "agent");
 	const workDir = join(base, "work");
@@ -79,7 +83,16 @@ async function startPiWith(base: string, settings: (agentDir: string, pkgDir: st
 
 	const child = spawn(
 		"pi",
-		["--mode", "rpc", "--no-session", "--offline", "--no-skills", "--no-context-files", "--no-prompt-templates", "--no-themes"],
+		[
+			"--mode",
+			"rpc",
+			"--no-session",
+			"--offline",
+			"--no-skills",
+			"--no-context-files",
+			"--no-prompt-templates",
+			"--no-themes",
+		],
 		{ cwd: workDir, env: { ...process.env, PI_CODING_AGENT_DIR: agentDir }, stdio: ["pipe", "pipe", "pipe"] },
 	);
 	let stdout = "";
@@ -115,10 +128,18 @@ async function startPiWith(base: string, settings: (agentDir: string, pkgDir: st
 describe.skipIf(!PI_AVAILABLE)("isolated Pi startup without rpiv packages", () => {
 	it("loads with task operations working and no packaging warning", async () => {
 		const session = await startPi();
-		expect(readdirSync(session.agentDir, { recursive: true }).map(String).filter((f) => /rpiv|juicesharp/.test(f))).toEqual([]);
+		expect(
+			readdirSync(session.agentDir, { recursive: true })
+				.map(String)
+				.filter((f) => /rpiv|juicesharp/.test(f)),
+		).toEqual([]);
 		expect(readdirSync(session.agentDir)).not.toContain("npm");
 		expect(session.commands).toEqual(expect.arrayContaining(["todos", "todo-settings"]));
-		expect(session.probe).toEqual(["Created #1: Probe task (pending)", "Updated #1 (pending → completed)", "[completed] #1 Probe task"]);
+		expect(session.probe).toEqual([
+			"Created #1: Probe task (pending)",
+			"Updated #1 (pending → completed)",
+			"[completed] #1 Probe task",
+		]);
 		expect(session.stderr).not.toMatch(/Host-provided extension packages|Extension package/);
 	}, 60_000);
 
@@ -139,8 +160,14 @@ describe.skipIf(!PI_AVAILABLE)("isolated Pi startup without rpiv packages", () =
 		scratch.push(base);
 		const original = join(base, "original");
 		mkdirSync(original);
-		writeFileSync(join(original, "package.json"), JSON.stringify({ name: "fake-original", pi: { extensions: ["./index.ts"] } }));
-		writeFileSync(join(original, "index.ts"), `export default function (pi: any) { pi.registerCommand("original-marker", { description: "x", handler: async () => {} }); }\n`);
+		writeFileSync(
+			join(original, "package.json"),
+			JSON.stringify({ name: "fake-original", pi: { extensions: ["./index.ts"] } }),
+		);
+		writeFileSync(
+			join(original, "index.ts"),
+			`export default function (pi: any) { pi.registerCommand("original-marker", { description: "x", handler: async () => {} }); }\n`,
+		);
 		return startPiWith(base, (agentDir, pkgDir) => ({ packages: [entry(original), pkgDir] }));
 	}
 
@@ -148,7 +175,11 @@ describe.skipIf(!PI_AVAILABLE)("isolated Pi startup without rpiv packages", () =
 		const session = await withOriginal((dir) => ({ source: dir, extensions: [] }));
 		expect(session.commands).not.toContain("original-marker");
 		expect(session.commands).toEqual(expect.arrayContaining(["todos", "todo-settings"]));
-		expect(session.probe).toEqual(["Created #1: Probe task (pending)", "Updated #1 (pending → completed)", "[completed] #1 Probe task"]);
+		expect(session.probe).toEqual([
+			"Created #1: Probe task (pending)",
+			"Updated #1 (pending → completed)",
+			"[completed] #1 Probe task",
+		]);
 	}, 60_000);
 
 	it("control: with the plain entry the original's extension loads too", async () => {

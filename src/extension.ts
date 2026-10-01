@@ -34,7 +34,8 @@ import { type PanelControl, registerTodosCommand, registerTodoTool, TOOL_NAME } 
 import type { TodoOverlay } from "./todo-overlay.js";
 
 /** Shown once on start when sync is the selected mode and no change is bound. */
-export const SELECTION_REQUIRED_MESSAGE = "OpenSpec sync is selected but no change is chosen. Run /todo-settings to choose one.";
+export const SELECTION_REQUIRED_MESSAGE =
+	"OpenSpec sync is selected but no change is chosen. Run /todo-settings to choose one.";
 
 /** Delay the overlay graph pre-warm until Pi's startup work has settled. */
 export const PREWARM_DELAY_MS = 2000;
@@ -161,7 +162,10 @@ export default async function (
 	 * Repaint the foreground panel. A failure is recorded, shown to the user once until a repaint works
 	 * again, and rethrown so the caller can add it to its own result. Task data is never touched.
 	 */
-	async function repaintForeground(resetCompletedDisplayState = false, generation = lifecycleGeneration): Promise<void> {
+	async function repaintForeground(
+		resetCompletedDisplayState = false,
+		generation = lifecycleGeneration,
+	): Promise<void> {
 		try {
 			await updateTodoOverlay(resetCompletedDisplayState, generation);
 			lastPanelFailure = undefined;
@@ -172,7 +176,10 @@ export default async function (
 			lastPanelFailure = message;
 			if (notifiedFailure !== message) {
 				notifiedFailure = message;
-				tell(`The todo panel could not be repainted: ${message}. Your tasks are safe. Run /todos refresh to retry.`, "error");
+				tell(
+					`The todo panel could not be repainted: ${message}. Your tasks are safe. Run /todos refresh to retry.`,
+					"error",
+				);
 			}
 			throw error;
 		}

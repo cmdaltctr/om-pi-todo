@@ -24,7 +24,12 @@ export function useSyncRoot() {
 	return state;
 }
 
-export function buildSync(paths: { root: string; changeRoot: string; tasksPath: string }, content: string, over: Partial<RuntimeDeps> = {}, sessionIds = ["s1"]) {
+export function buildSync(
+	paths: { root: string; changeRoot: string; tasksPath: string },
+	content: string,
+	over: Partial<RuntimeDeps> = {},
+	sessionIds = ["s1"],
+) {
 	writeFileSync(paths.tasksPath, content);
 	const cli = makeFakeCli({ root: paths.root, change: "a", tasksPath: paths.tasksPath, changeRoot: paths.changeRoot });
 	const repaints: number[] = [];

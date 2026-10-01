@@ -41,7 +41,12 @@ export interface SettingsHooks {
 	onModeChanged?(ctx: Ctx): void | Promise<void>;
 }
 
-async function chooseSessionMode(pi: ExtensionAPI, ctx: Ctx, discover: ChangeDiscovery, hooks: SettingsHooks): Promise<void> {
+async function chooseSessionMode(
+	pi: ExtensionAPI,
+	ctx: Ctx,
+	discover: ChangeDiscovery,
+	hooks: SettingsHooks,
+): Promise<void> {
 	const id = sid(ctx);
 	const mode = await pickMode(ctx, "Session mode");
 	if (mode === undefined) return;
@@ -62,16 +67,24 @@ async function chooseSessionMode(pi: ExtensionAPI, ctx: Ctx, discover: ChangeDis
 		return;
 	}
 
-	const labels = new Map(found.changes.map((c) => [c.supported ? c.name : `${c.name} (unsupported: ${c.reason ?? "unknown reason"})`, c]));
+	const labels = new Map(
+		found.changes.map((c) => [c.supported ? c.name : `${c.name} (unsupported: ${c.reason ?? "unknown reason"})`, c]),
+	);
 	const label = await ctx.ui.select(`Choose an OpenSpec change (root: ${found.root})`, [...labels.keys()]);
 	const change = label === undefined ? undefined : labels.get(label);
 	if (!change) return;
 	if (!change.supported) {
-		ctx.ui.notify(`Cannot bind ${change.name}: ${change.reason ?? "unsupported"}. Choose a supported spec-driven change.`, "warning");
+		ctx.ui.notify(
+			`Cannot bind ${change.name}: ${change.reason ?? "unsupported"}. Choose a supported spec-driven change.`,
+			"warning",
+		);
 		return;
 	}
 
-	const confirmed = await ctx.ui.confirm("Bind this session to an OpenSpec change?", `Change: ${change.name}\nPlanning root: ${found.root}${found.rootSource ? ` (${found.rootSource})` : ""}`);
+	const confirmed = await ctx.ui.confirm(
+		"Bind this session to an OpenSpec change?",
+		`Change: ${change.name}\nPlanning root: ${found.root}${found.rootSource ? ` (${found.rootSource})` : ""}`,
+	);
 	if (!confirmed) return;
 	persistSessionMode(pi, id, { mode: "openspec", binding: { root: found.root, change: change.name } });
 	await hooks.onModeChanged?.(ctx);
@@ -86,7 +99,10 @@ async function chooseDefaultMode(ctx: Ctx): Promise<void> {
 }
 
 async function chooseLineBudget(ctx: Ctx): Promise<void> {
-	const answer = await ctx.ui.input(`Panel line budget (minimum ${MIN_WIDGET_LINES})`, String(getPreferences().maxWidgetLines));
+	const answer = await ctx.ui.input(
+		`Panel line budget (minimum ${MIN_WIDGET_LINES})`,
+		String(getPreferences().maxWidgetLines),
+	);
 	if (answer === undefined) return;
 	const text = answer.trim();
 	const value = /^\d+$/.test(text) ? Number(text) : Number.NaN;
@@ -108,7 +124,11 @@ async function chooseCollapseKey(ctx: Ctx): Promise<void> {
 	await saveAndReport(ctx, { collapseKey: key }, "Collapse key saved. Run /reload to apply it.");
 }
 
-export function registerTodoSettingsCommand(pi: ExtensionAPI, discover: ChangeDiscovery, hooks: SettingsHooks = {}): void {
+export function registerTodoSettingsCommand(
+	pi: ExtensionAPI,
+	discover: ChangeDiscovery,
+	hooks: SettingsHooks = {},
+): void {
 	pi.registerCommand(SETTINGS_COMMAND, {
 		description: "Choose the todo mode for this session and set todo defaults",
 		handler: async (_args, ctx) => {

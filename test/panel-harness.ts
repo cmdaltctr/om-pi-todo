@@ -6,7 +6,10 @@ import { makeFakeCli } from "./fake-cli.js";
 import { callTool, createCtx, createHost, sessionEntry } from "./helpers.js";
 
 /** A theme whose styling calls return the plain text. */
-export const plainTheme: any = new Proxy({}, { get: (_t, key) => (key === "fg" || key === "bg" ? (_c: string, text: string) => text : (text: string) => text) });
+export const plainTheme: any = new Proxy(
+	{},
+	{ get: (_t, key) => (key === "fg" || key === "bg" ? (_c: string, text: string) => text : (text: string) => text) },
+);
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export interface BootOptions {
@@ -21,7 +24,9 @@ export interface BootOptions {
  */
 export async function bootPanel(options: BootOptions = {}) {
 	const { paths, content } = options;
-	const cli = paths ? makeFakeCli({ root: paths.root, change: "a", tasksPath: paths.tasksPath, changeRoot: paths.changeRoot }) : undefined;
+	const cli = paths
+		? makeFakeCli({ root: paths.root, change: "a", tasksPath: paths.tasksPath, changeRoot: paths.changeRoot })
+		: undefined;
 	if (paths && content !== undefined) writeFileSync(paths.tasksPath, content);
 	const watches: Array<{ closed: boolean; fire: () => void }> = [];
 	const renames = vi.fn();
@@ -31,7 +36,12 @@ export async function bootPanel(options: BootOptions = {}) {
 	await extension(
 		host.pi,
 		undefined,
-		async () => ({ ok: true, root: paths?.root ?? "/none", rootSource: "nearest", changes: [{ name: "a", supported: true }] }),
+		async () => ({
+			ok: true,
+			root: paths?.root ?? "/none",
+			rootSource: "nearest",
+			changes: [{ name: "a", supported: true }],
+		}),
 		{
 			...(cli ? { run: cli.run as any } : {}),
 			watchDelayMs: 20,
@@ -41,12 +51,24 @@ export async function bootPanel(options: BootOptions = {}) {
 				watches.push(w);
 				return { close: () => void (w.closed = true) };
 			},
-			fs: { rename: async (a: string, b: string) => { renames(); renameSync(a, b); } },
+			fs: {
+				rename: async (a: string, b: string) => {
+					renames();
+					renameSync(a, b);
+				},
+			},
 			...options.runtime,
 		},
 	);
 
-	const widget = { failWith: undefined as Error | undefined, registrations: 0, unregistrations: 0, factory: undefined as any, rendered: undefined as any, tui: { requestRender: vi.fn() } };
+	const widget = {
+		failWith: undefined as Error | undefined,
+		registrations: 0,
+		unregistrations: 0,
+		factory: undefined as any,
+		rendered: undefined as any,
+		tui: { requestRender: vi.fn() },
+	};
 	const notes: Array<{ message: string; type?: string }> = [];
 	const ui = {
 		setWidget: (_key: string, factory: unknown) => {
@@ -65,9 +87,12 @@ export async function bootPanel(options: BootOptions = {}) {
 		theme: plainTheme,
 	};
 	const bound = paths ? [sessionEntry({ mode: "openspec", binding: { root: paths.root, change: "a" } })] : [];
-	const session = (id = "s1", branch: unknown[] = bound, extra: Record<string, unknown> = {}) => createCtx(id, branch, { hasUI: true, cwd: paths?.root ?? "/none", ui, ...extra });
-	const fire = (event: string, ctx: unknown, payload: unknown = {}) => Promise.all((host.handlers.get(event) ?? []).map((h) => h(payload, ctx)));
-	const render = (): string[] | undefined => (widget.rendered ? (widget.rendered.render(120) as string[]).filter((l) => l !== "") : undefined);
+	const session = (id = "s1", branch: unknown[] = bound, extra: Record<string, unknown> = {}) =>
+		createCtx(id, branch, { hasUI: true, cwd: paths?.root ?? "/none", ui, ...extra });
+	const fire = (event: string, ctx: unknown, payload: unknown = {}) =>
+		Promise.all((host.handlers.get(event) ?? []).map((h) => h(payload, ctx)));
+	const render = (): string[] | undefined =>
+		widget.rendered ? (widget.rendered.render(120) as string[]).filter((l) => l !== "") : undefined;
 	const call = (ctx: unknown, params: Record<string, unknown>) => callTool(host, ctx, params);
 	const command = (name: string, ctx: unknown, args = "") => host.commands.get(name).handler(args, ctx);
 	const settle = async () => {
@@ -76,5 +101,22 @@ export async function bootPanel(options: BootOptions = {}) {
 	};
 	const disk = () => (paths ? readFileSync(paths.tasksPath) : Buffer.alloc(0));
 	const renders = () => widget.tui.requestRender.mock.calls.length;
-	return { host, cli, widget, notes, ui, session, fire, render, call, command, settle, disk, renders, renames, watches, sent };
+	return {
+		host,
+		cli,
+		widget,
+		notes,
+		ui,
+		session,
+		fire,
+		render,
+		call,
+		command,
+		settle,
+		disk,
+		renders,
+		renames,
+		watches,
+		sent,
+	};
 }

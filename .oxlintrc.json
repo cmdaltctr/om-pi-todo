@@ -1,30 +1,30 @@
 {
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["typescript", "unicorn", "oxc", "import", "promise", "node"],
-  "categories": {
-    "correctness": "error",
-    "suspicious": "error",
-    "perf": "warn"
-  },
-  "env": { "node": true, "es2023": true },
-  "rules": {
-    "typescript/no-explicit-any": "off",
-    "unicorn/consistent-function-scoping": "off",
-    "eslint/no-await-in-loop": "off",
-    "eslint/no-underscore-dangle": "off",
-    "oxc/no-map-spread": "off",
-    "unicorn/prefer-set-has": "off"
-  },
-  "overrides": [
-    {
-      "files": ["test/**/*.ts"],
-      "rules": {
-        "eslint/no-control-regex": "off",
-        "eslint/no-unused-vars": "warn",
-        "promise/always-return": "off",
-        "unicorn/no-array-sort": "off"
-      }
-    }
-  ],
-  "ignorePatterns": [".pi-host/**", "node_modules/**", "coverage/**"]
+	"$schema": "./node_modules/oxlint/configuration_schema.json",
+	"plugins": ["typescript", "unicorn", "oxc", "import", "promise", "node"],
+	"categories": {
+		"correctness": "error",
+		"suspicious": "error",
+		"perf": "warn"
+	},
+	"env": { "node": true, "es2023": true },
+	"rules": {
+		"typescript/no-explicit-any": "off",
+		"unicorn/consistent-function-scoping": "off",
+		"eslint/no-await-in-loop": "off",
+		"eslint/no-underscore-dangle": "off",
+		"oxc/no-map-spread": "off",
+		"unicorn/prefer-set-has": "off"
+	},
+	"overrides": [
+		{
+			"files": ["test/**/*.ts"],
+			"rules": {
+				"eslint/no-control-regex": "off",
+				"eslint/no-unused-vars": "warn",
+				"promise/always-return": "off",
+				"unicorn/no-array-sort": "off"
+			}
+		}
+	],
+	"ignorePatterns": [".pi-host/**", "node_modules/**", "coverage/**"]
 }

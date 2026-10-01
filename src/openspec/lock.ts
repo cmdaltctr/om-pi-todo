@@ -36,7 +36,9 @@ export interface LockOptions {
 	signal?: AbortSignal;
 }
 
-export type ReleaseResult = { released: true } | { released: false; reason: "not-owner" | "missing" | "already-released" | "error"; message?: string };
+export type ReleaseResult =
+	| { released: true }
+	| { released: false; reason: "not-owner" | "missing" | "already-released" | "error"; message?: string };
 
 export interface HeldLock {
 	path: string;
@@ -64,7 +66,15 @@ function parseOwner(text: string): LockOwner | undefined {
 		const v = JSON.parse(text) as Partial<LockOwner> | null;
 		if (!v || typeof v !== "object" || Array.isArray(v)) return undefined;
 		const { pid, host, createdAt, target, token } = v;
-		if (typeof pid !== "number" || !Number.isInteger(pid) || typeof host !== "string" || typeof createdAt !== "string" || typeof target !== "string" || typeof token !== "string") return undefined;
+		if (
+			typeof pid !== "number" ||
+			!Number.isInteger(pid) ||
+			typeof host !== "string" ||
+			typeof createdAt !== "string" ||
+			typeof target !== "string" ||
+			typeof token !== "string"
+		)
+			return undefined;
 		return { pid, host, createdAt, target, token };
 	} catch {
 		return undefined;
@@ -112,10 +122,20 @@ async function contended(lockPath: string): Promise<AcquireResult> {
 	}
 	const owner = parseOwner(text);
 	if (!owner) {
-		return { ok: false, kind: "contended", lockPath, message: `The task file lock ${lockPath} exists and its owner cannot be read. If no other Pi session is editing this task file, delete it and retry.` };
+		return {
+			ok: false,
+			kind: "contended",
+			lockPath,
+			message: `The task file lock ${lockPath} exists and its owner cannot be read. If no other Pi session is editing this task file, delete it and retry.`,
+		};
 	}
 	const state = ownerState(owner);
-	const label = state === "other-host" ? "on another host, so liveness is unknown" : state === "not-running" ? "which no longer appears to be running" : "which is running";
+	const label =
+		state === "other-host"
+			? "on another host, so liveness is unknown"
+			: state === "not-running"
+				? "which no longer appears to be running"
+				: "which is running";
 	return {
 		ok: false,
 		kind: "contended",
@@ -145,7 +165,13 @@ export async function acquireLock(target: string, options: LockOptions = {}): Pr
 			} catch (error) {
 				await handle.close().catch(() => undefined);
 				await unlink(lockPath).catch(() => undefined);
-				return { ok: false, kind: "error", lockPath, code: (error as NodeJS.ErrnoException).code, message: `Could not write the lock ${lockPath}: ${(error as Error).message}` };
+				return {
+					ok: false,
+					kind: "error",
+					lockPath,
+					code: (error as NodeJS.ErrnoException).code,
+					message: `Could not write the lock ${lockPath}: ${(error as Error).message}`,
+				};
 			}
 			await handle.close();
 			if (signal?.aborted) {
@@ -175,7 +201,13 @@ export async function acquireLock(target: string, options: LockOptions = {}): Pr
 			};
 		} catch (error) {
 			if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
-				return { ok: false, kind: "error", lockPath, code: (error as NodeJS.ErrnoException).code, message: `Could not create the lock ${lockPath}: ${(error as Error).message}` };
+				return {
+					ok: false,
+					kind: "error",
+					lockPath,
+					code: (error as NodeJS.ErrnoException).code,
+					message: `Could not create the lock ${lockPath}: ${(error as Error).message}`,
+				};
 			}
 		}
 		if (Date.now() >= deadline) return contended(lockPath);
@@ -190,14 +222,19 @@ const queues = new Map<string, Promise<unknown>>();
  * Sections for one target run in call order; different targets run together.
  * A section that throws releases the lock and the error propagates.
  */
-export function withTargetLock<T>(target: string, options: LockOptions, section: () => Promise<T>): Promise<SectionResult<T>> {
+export function withTargetLock<T>(
+	target: string,
+	options: LockOptions,
+	section: () => Promise<T>,
+): Promise<SectionResult<T>> {
 	const { signal } = options;
 	const lockPath = lockPathFor(target);
 	const previous = (queues.get(target) ?? Promise.resolve()).catch(() => undefined);
 	let started = false;
 
 	const work = previous.then(async (): Promise<SectionResult<T>> => {
-		if (signal?.aborted) return { ok: false, kind: "cancelled", lockPath, message: "Cancelled before the write started" };
+		if (signal?.aborted)
+			return { ok: false, kind: "cancelled", lockPath, message: "Cancelled before the write started" };
 		const acquired = await acquireLock(target, options);
 		if (!acquired.ok) return acquired;
 		started = true; // from here an abort no longer overrides the section's own result
@@ -219,7 +256,8 @@ export function withTargetLock<T>(target: string, options: LockOptions, section:
 	let onAbort: () => void = () => undefined;
 	const aborted = new Promise<SectionResult<T>>((resolve) => {
 		onAbort = () => {
-			if (!started) resolve({ ok: false, kind: "cancelled", lockPath, message: "Cancelled while waiting for an earlier write" });
+			if (!started)
+				resolve({ ok: false, kind: "cancelled", lockPath, message: "Cancelled while waiting for an earlier write" });
 		};
 		if (signal.aborted) onAbort();
 		else signal.addEventListener("abort", onAbort, { once: true });

@@ -81,12 +81,17 @@ type Answer = string | boolean | undefined;
  * An exhausted queue throws so a runaway dialog loop fails fast. Every call is recorded.
  */
 export function scriptedUi(answers: { select?: Answer[]; confirm?: Answer[]; input?: Answer[] } = {}) {
-	const queues = { select: [...(answers.select ?? [])], confirm: [...(answers.confirm ?? [])], input: [...(answers.input ?? [])] };
+	const queues = {
+		select: [...(answers.select ?? [])],
+		confirm: [...(answers.confirm ?? [])],
+		input: [...(answers.input ?? [])],
+	};
 	const calls: Array<{ method: string; args: unknown[] }> = [];
 	const notes: Array<{ message: string; type?: string }> = [];
 	const next = (method: keyof typeof queues, args: unknown[]) => {
 		calls.push({ method, args });
-		if (queues[method].length === 0) throw new Error(`scriptedUi: no answer left for ${method}(${JSON.stringify(args[0])})`);
+		if (queues[method].length === 0)
+			throw new Error(`scriptedUi: no answer left for ${method}(${JSON.stringify(args[0])})`);
 		return queues[method].shift();
 	};
 	const ui = {
@@ -95,7 +100,12 @@ export function scriptedUi(answers: { select?: Answer[]; confirm?: Answer[]; inp
 		input: async (...args: unknown[]) => next("input", args),
 		notify: (message: string, type?: string) => void notes.push({ message, type }),
 	};
-	return { ui, calls, notes, remaining: () => ({ select: queues.select.length, confirm: queues.confirm.length, input: queues.input.length }) };
+	return {
+		ui,
+		calls,
+		notes,
+		remaining: () => ({ select: queues.select.length, confirm: queues.confirm.length, input: queues.input.length }),
+	};
 }
 
 /** Session context that records `appendEntry`-style writes made through a host. */

@@ -22,7 +22,8 @@ const SUBJECT_LIMIT = 60;
 /** Tasks the session still shows as in progress. A checked linked box is finished, whatever its saved activity. */
 export function unresolvedInProgress(sessionId: string, runtime: Runtime | undefined): Unresolved[] {
 	const ordinary = getState(sessionId).tasks.filter((t) => t.status === "in_progress");
-	if (!runtime || getSessionMode(sessionId).mode !== "openspec") return ordinary.map((t) => ({ label: `#${t.id}`, subject: t.subject }));
+	if (!runtime || getSessionMode(sessionId).mode !== "openspec")
+		return ordinary.map((t) => ({ label: `#${t.id}`, subject: t.subject }));
 	const linked = runtime.provider
 		.getSnapshot(sessionId)
 		.linked.filter((r) => !r.done && r.activity?.status === "in_progress")

@@ -19,16 +19,24 @@ async function story(t: Awaited<ReturnType<typeof bootPanel>>, ctx: any, mode: "
 	const sync = mode === "sync";
 	const id = (n: number) => n;
 	let rev = "";
-	const refreshRev = async () => (rev = /expectedRevision "([0-9a-f]{16})"/.exec((await t.call(ctx, { action: "list" })).text)![1]);
+	const refreshRev = async () =>
+		(rev = /expectedRevision "([0-9a-f]{16})"/.exec((await t.call(ctx, { action: "list" })).text)![1]);
 	const update = async (params: Record<string, unknown>) => {
 		if (sync) await refreshRev();
 		return t.call(ctx, { action: "update", ...params, ...(sync && params.status ? { expectedRevision: rev } : {}) });
 	};
-	if (!sync) for (const subject of ["Plan", "Implement", "Get approval", "Run review", "Release"]) await t.call(ctx, { action: "create", subject });
+	if (!sync)
+		for (const subject of ["Plan", "Implement", "Get approval", "Run review", "Release"])
+			await t.call(ctx, { action: "create", subject });
 	await t.fire("agent_start", ctx);
 	await update({ id: id(1), status: "completed" });
 	await update({ id: id(2), status: "completed" });
-	await update({ id: id(3), status: "in_progress", activeForm: "waiting for sign-off", waitingReason: "approval from the owner" });
+	await update({
+		id: id(3),
+		status: "in_progress",
+		activeForm: "waiting for sign-off",
+		waitingReason: "approval from the owner",
+	});
 	await update({ id: id(4), failureReason: "review found 3 issues" });
 	if (!sync) await t.call(ctx, { action: "update", id: 5, addBlockedBy: [3, 4] });
 	else await t.call(ctx, { action: "update", id: 5, addBlockedBy: [3, 4] });
@@ -90,7 +98,13 @@ describe("7.3 screenshot sequence, normal mode", () => {
 });
 
 describe("7.3 screenshot sequence, OpenSpec sync mode", () => {
-	const plan = md("- [ ] 1.1 Plan", "- [ ] 1.2 Implement", "- [ ] 1.3 Get approval", "- [ ] 1.4 Run review", "- [ ] 1.5 Release");
+	const plan = md(
+		"- [ ] 1.1 Plan",
+		"- [ ] 1.2 Implement",
+		"- [ ] 1.3 Get approval",
+		"- [ ] 1.4 Run review",
+		"- [ ] 1.5 Release",
+	);
 
 	it("keeps OpenSpec totals truthful, writes only the two completed boxes, and shows the same honesty", async () => {
 		const t = await bootPanel({ paths, content: plan });
@@ -107,7 +121,15 @@ describe("7.3 screenshot sequence, OpenSpec sync mode", () => {
 		expect(rowFor(lines, "1.4 Run review")).toContain("failed: review found 3 issues");
 		expect(rowFor(lines, "1.5 Release")).toContain("Blocked by #3, #4");
 		expect(lines.join("\n")).not.toContain("◐");
-		expect(t.disk().toString()).toBe(md("- [x] 1.1 Plan", "- [x] 1.2 Implement", "- [ ] 1.3 Get approval", "- [ ] 1.4 Run review", "- [ ] 1.5 Release"));
+		expect(t.disk().toString()).toBe(
+			md(
+				"- [x] 1.1 Plan",
+				"- [x] 1.2 Implement",
+				"- [ ] 1.3 Get approval",
+				"- [ ] 1.4 Run review",
+				"- [ ] 1.5 Release",
+			),
+		);
 	});
 
 	it("/todos and the panel report the same two-of-five", async () => {

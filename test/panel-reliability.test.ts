@@ -88,7 +88,13 @@ describe("every committed update repaints the panel without another prompt", () 
 		const rev = /expectedRevision "([0-9a-f]{16})"/.exec(list.text)![1];
 		const before = t.renders();
 		const disk = t.disk();
-		await t.call(ctx, { action: "update", id: 1, status: "in_progress", activeForm: "starting", expectedRevision: rev });
+		await t.call(ctx, {
+			action: "update",
+			id: 1,
+			status: "in_progress",
+			activeForm: "starting",
+			expectedRevision: rev,
+		});
 		expect(t.renders()).toBeGreaterThan(before);
 		expect(t.render()!.join("\n")).toContain("◐ A (starting)");
 		expect(t.disk().equals(disk)).toBe(true);
@@ -142,16 +148,39 @@ describe("every committed update repaints the panel without another prompt", () 
 
 	it("resume, compaction and branch navigation repaint", async () => {
 		const t = await bootPanel();
-		const branch: unknown[] = [{ type: "message", message: { role: "toolResult", toolName: "todo", details: { tasks: [{ id: 1, subject: "Old", status: "pending" }], nextId: 2 } } }];
+		const branch: unknown[] = [
+			{
+				type: "message",
+				message: {
+					role: "toolResult",
+					toolName: "todo",
+					details: { tasks: [{ id: 1, subject: "Old", status: "pending" }], nextId: 2 },
+				},
+			},
+		];
 		const ctx = t.session("s1", branch);
 		await t.fire("session_start", ctx);
 		expect(t.render()!.join("\n")).toContain("Old");
 		branch.length = 0;
-		branch.push({ type: "message", message: { role: "toolResult", toolName: "todo", details: { tasks: [{ id: 1, subject: "Branch two", status: "pending" }], nextId: 2 } } });
+		branch.push({
+			type: "message",
+			message: {
+				role: "toolResult",
+				toolName: "todo",
+				details: { tasks: [{ id: 1, subject: "Branch two", status: "pending" }], nextId: 2 },
+			},
+		});
 		await t.fire("session_tree", ctx);
 		expect(t.render()!.join("\n")).toContain("Branch two");
 		branch.length = 0;
-		branch.push({ type: "message", message: { role: "toolResult", toolName: "todo", details: { tasks: [{ id: 1, subject: "After compact", status: "pending" }], nextId: 2 } } });
+		branch.push({
+			type: "message",
+			message: {
+				role: "toolResult",
+				toolName: "todo",
+				details: { tasks: [{ id: 1, subject: "After compact", status: "pending" }], nextId: 2 },
+			},
+		});
 		await t.fire("session_compact", ctx);
 		expect(t.render()!.join("\n")).toContain("After compact");
 	});
@@ -257,7 +286,16 @@ describe("run state changes the rows, not the tasks", () => {
 
 	it("a resumed session shows in-progress work as Idle, never running", async () => {
 		const t = await bootPanel();
-		const branch = [{ type: "message", message: { role: "toolResult", toolName: "todo", details: { tasks: [{ id: 1, subject: "Saved", status: "in_progress", activeForm: "x" }], nextId: 2 } } }];
+		const branch = [
+			{
+				type: "message",
+				message: {
+					role: "toolResult",
+					toolName: "todo",
+					details: { tasks: [{ id: 1, subject: "Saved", status: "in_progress", activeForm: "x" }], nextId: 2 },
+				},
+			},
+		];
 		await t.fire("session_start", t.session("s1", branch));
 		expect(t.render()![1]).toBe("└─ ◌ Saved Idle");
 	});
@@ -313,7 +351,9 @@ describe("a failed repaint is visible and does not undo anything", () => {
 		expect(result.details.tasks.map((x: { subject: string }) => x.subject)).toEqual(["A", "B"]);
 		const errors = t.notes.filter((n) => n.type === "error");
 		expect(errors).toHaveLength(1);
-		expect(errors[0].message).toBe("The todo panel could not be repainted: widget host gone. Your tasks are safe. Run /todos refresh to retry.");
+		expect(errors[0].message).toBe(
+			"The todo panel could not be repainted: widget host gone. Your tasks are safe. Run /todos refresh to retry.",
+		);
 	});
 
 	it("does not repeat the same notification on every update, and notifies again after a recovery", async () => {
@@ -335,7 +375,16 @@ describe("a failed repaint is visible and does not undo anything", () => {
 	it("resuming a session on a host that cannot draw the panel reports it and does not fail the start", async () => {
 		const t = await bootPanel();
 		t.widget.failWith = new Error("widget host gone");
-		const branch = [{ type: "message", message: { role: "toolResult", toolName: "todo", details: { tasks: [{ id: 1, subject: "Saved", status: "pending" }], nextId: 2 } } }];
+		const branch = [
+			{
+				type: "message",
+				message: {
+					role: "toolResult",
+					toolName: "todo",
+					details: { tasks: [{ id: 1, subject: "Saved", status: "pending" }], nextId: 2 },
+				},
+			},
+		];
 		const ctx = t.session("s1", branch);
 		await expect(t.fire("session_start", ctx)).resolves.toBeDefined();
 		expect(t.notes.filter((n) => n.type === "error")).toHaveLength(1);
@@ -454,7 +503,9 @@ describe("/todos refresh recovers the panel", () => {
 		expect(t.render()).toBeUndefined();
 		t.widget.failWith = undefined;
 		await t.command("todos", ctx, "refresh");
-		expect(t.notes).toEqual([{ message: "Todo panel recovered. The earlier problem was: widget host gone", type: "info" }]);
+		expect(t.notes).toEqual([
+			{ message: "Todo panel recovered. The earlier problem was: widget host gone", type: "info" },
+		]);
 		expect(t.render()).toEqual(["● Todos (0/2)", "├─ ○ A", "└─ ○ B"]);
 		expect((await t.call(ctx, { action: "list" })).text).toBe("[pending] #1 A\n[pending] #2 B");
 	});
@@ -464,7 +515,10 @@ describe("/todos refresh recovers the panel", () => {
 		t.widget.failWith = undefined;
 		await t.command("todos", ctx, "refresh");
 		await t.command("todos", ctx, "refresh");
-		expect(t.notes.map((n) => n.message)).toEqual(["Todo panel recovered. The earlier problem was: widget host gone", "Todo panel refreshed."]);
+		expect(t.notes.map((n) => n.message)).toEqual([
+			"Todo panel recovered. The earlier problem was: widget host gone",
+			"Todo panel refreshed.",
+		]);
 	});
 
 	it("names the latest problem when a refresh itself fails differently", async () => {
@@ -474,7 +528,9 @@ describe("/todos refresh recovers the panel", () => {
 		t.widget.failWith = undefined;
 		t.notes.length = 0;
 		await t.command("todos", ctx, "refresh");
-		expect(t.notes).toEqual([{ message: "Todo panel recovered. The earlier problem was: second problem", type: "info" }]);
+		expect(t.notes).toEqual([
+			{ message: "Todo panel recovered. The earlier problem was: second problem", type: "info" },
+		]);
 	});
 
 	it("works with nothing wrong, and says so", async () => {
@@ -491,7 +547,10 @@ describe("/todos refresh recovers the panel", () => {
 		const { t, ctx } = await broken();
 		await t.command("todos", ctx, "refresh");
 		expect(t.notes).toHaveLength(1);
-		expect(t.notes[0]).toEqual({ message: "Todo panel refresh failed: widget host gone. Your tasks are unchanged. Run /todos refresh to retry.", type: "error" });
+		expect(t.notes[0]).toEqual({
+			message: "Todo panel refresh failed: widget host gone. Your tasks are unchanged. Run /todos refresh to retry.",
+			type: "error",
+		});
 		expect((await t.call(ctx, { action: "list" })).text).toContain("#2 B");
 		t.widget.failWith = undefined;
 		await t.command("todos", ctx, "refresh");
@@ -554,7 +613,10 @@ describe("/todos refresh recovers the panel", () => {
 		expect(t.render()![0]).toBe("● Todos · OpenSpec 1/2");
 		expect(t.disk().equals(external)).toBe(true);
 		expect(t.renames).not.toHaveBeenCalled();
-		expect(t.notes.at(-1)).toEqual({ message: "Todo panel recovered. The earlier problem was: widget host gone", type: "info" });
+		expect(t.notes.at(-1)).toEqual({
+			message: "Todo panel recovered. The earlier problem was: widget host gone",
+			type: "info",
+		});
 	});
 
 	it("normal mode: never starts the OpenSpec CLI, even when a runtime exists", async () => {
@@ -580,14 +642,16 @@ describe("/todos refresh recovers the panel", () => {
 });
 
 describe("one reminder when the agent settles with work in progress", () => {
-	const reminders = (t: Awaited<ReturnType<typeof bootPanel>>) => t.notes.filter((n) => n.message.startsWith("Reminder:"));
+	const reminders = (t: Awaited<ReturnType<typeof bootPanel>>) =>
+		t.notes.filter((n) => n.message.startsWith("Reminder:"));
 
 	async function inProgress(names: string[]) {
 		const t = await bootPanel();
 		const ctx = t.session("s1", []);
 		await t.fire("session_start", ctx);
 		for (const name of names) await t.call(ctx, { action: "create", subject: name });
-		for (let i = 1; i <= names.length; i++) await t.call(ctx, { action: "update", id: i, status: "in_progress", activeForm: "x" });
+		for (let i = 1; i <= names.length; i++)
+			await t.call(ctx, { action: "update", id: i, status: "in_progress", activeForm: "x" });
 		t.notes.length = 0;
 		return { t, ctx };
 	}
@@ -597,7 +661,8 @@ describe("one reminder when the agent settles with work in progress", () => {
 		await t.fire("agent_settled", ctx);
 		expect(reminders(t)).toEqual([
 			{
-				message: "Reminder: 2 tasks are still in progress: #1 Write tests, #2 Fix bug. Update each one: mark it completed or pending, or record what it is waiting for with waitingReason or failureReason.",
+				message:
+					"Reminder: 2 tasks are still in progress: #1 Write tests, #2 Fix bug. Update each one: mark it completed or pending, or record what it is waiting for with waitingReason or failureReason.",
 				type: "warning",
 			},
 		]);
@@ -639,7 +704,9 @@ describe("one reminder when the agent settles with work in progress", () => {
 	it("lists at most five tasks and counts the rest", async () => {
 		const { t, ctx } = await inProgress(["a", "b", "c", "d", "e", "f", "g"]);
 		await t.fire("agent_settled", ctx);
-		expect(reminders(t)[0].message).toMatch(/^Reminder: 7 tasks are still in progress: #1 a, #2 b, #3 c, #4 d, #5 e and 2 more\. /);
+		expect(reminders(t)[0].message).toMatch(
+			/^Reminder: 7 tasks are still in progress: #1 a, #2 b, #3 c, #4 d, #5 e and 2 more\. /,
+		);
 	});
 
 	it("cuts long wording and strips control sequences", async () => {

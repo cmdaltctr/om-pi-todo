@@ -72,7 +72,11 @@ describe("contention", () => {
 		const started = Date.now();
 		const result = await acquireLock(target, FAST);
 		const waited = Date.now() - started;
-		expect(result).toMatchObject({ ok: false, kind: "contended", owner: { pid: process.pid, host: hostname(), state: "running" } });
+		expect(result).toMatchObject({
+			ok: false,
+			kind: "contended",
+			owner: { pid: process.pid, host: hostname(), state: "running" },
+		});
 		expect(waited).toBeGreaterThanOrEqual(140);
 		expect(waited).toBeLessThan(1500);
 		if (result.ok) return;
@@ -88,7 +92,13 @@ describe("never steals a lock it cannot prove is free", () => {
 	const writeLock = (content: string) => writeFileSync(lockPathFor(target), content);
 
 	it("keeps an ancient lock whose process is gone, and reports that state", async () => {
-		const meta = { pid: 2_000_000_000, host: hostname(), createdAt: "2001-01-01T00:00:00.000Z", target, token: "a".repeat(32) };
+		const meta = {
+			pid: 2_000_000_000,
+			host: hostname(),
+			createdAt: "2001-01-01T00:00:00.000Z",
+			target,
+			token: "a".repeat(32),
+		};
 		writeLock(JSON.stringify(meta));
 		const result = await acquireLock(target, FAST);
 		expect(result).toMatchObject({ ok: false, kind: "contended", owner: { pid: 2_000_000_000, state: "not-running" } });
@@ -96,7 +106,15 @@ describe("never steals a lock it cannot prove is free", () => {
 	});
 
 	it("keeps a lock from another host and says liveness is unknown", async () => {
-		writeLock(JSON.stringify({ pid: 1, host: "some-other-machine", createdAt: new Date().toISOString(), target, token: "b".repeat(32) }));
+		writeLock(
+			JSON.stringify({
+				pid: 1,
+				host: "some-other-machine",
+				createdAt: new Date().toISOString(),
+				target,
+				token: "b".repeat(32),
+			}),
+		);
 		const result = await acquireLock(target, FAST);
 		expect(result).toMatchObject({ ok: false, kind: "contended", owner: { state: "other-host" } });
 		expect(existsSync(lockPathFor(target))).toBe(true);
@@ -123,7 +141,13 @@ describe("release", () => {
 
 	it("leaves a lock that now belongs to someone else", async () => {
 		const lock = held(await acquireLock(target, FAST));
-		const other = JSON.stringify({ pid: 4242, host: "x", createdAt: new Date().toISOString(), target, token: "c".repeat(32) });
+		const other = JSON.stringify({
+			pid: 4242,
+			host: "x",
+			createdAt: new Date().toISOString(),
+			target,
+			token: "c".repeat(32),
+		});
 		writeFileSync(lock.path, other);
 		expect(await lock.release()).toMatchObject({ released: false, reason: "not-owner" });
 		expect(readFileSync(lock.path, "utf-8")).toBe(other);
@@ -149,13 +173,22 @@ describe("cancellation", () => {
 	it("does not create a lock when the signal is already aborted", async () => {
 		const controller = new AbortController();
 		controller.abort();
-		expect(await acquireLock(target, { ...FAST, signal: controller.signal })).toMatchObject({ ok: false, kind: "cancelled" });
+		expect(await acquireLock(target, { ...FAST, signal: controller.signal })).toMatchObject({
+			ok: false,
+			kind: "cancelled",
+		});
 		expect(existsSync(lockPathFor(target))).toBe(false);
 	});
 
 	it("removes a lock it just created when the signal aborts right after acquisition", async () => {
 		let reads = 0;
-		const signal = { get aborted() { return ++reads > 1; }, addEventListener() {}, removeEventListener() {} } as unknown as AbortSignal;
+		const signal = {
+			get aborted() {
+				return ++reads > 1;
+			},
+			addEventListener() {},
+			removeEventListener() {},
+		} as unknown as AbortSignal;
 		expect(await acquireLock(target, { ...FAST, signal })).toMatchObject({ ok: false, kind: "cancelled" });
 		expect(existsSync(lockPathFor(target))).toBe(false);
 	});
@@ -216,7 +249,11 @@ describe("serialising writers inside one process", () => {
 	});
 
 	it("releases the lock and rethrows when the section throws, and later sections still run", async () => {
-		await expect(withTargetLock(target, FAST, async () => { throw new Error("boom"); })).rejects.toThrow("boom");
+		await expect(
+			withTargetLock(target, FAST, async () => {
+				throw new Error("boom");
+			}),
+		).rejects.toThrow("boom");
 		expect(existsSync(lockPathFor(target))).toBe(false);
 		expect(await withTargetLock(target, FAST, async () => 7)).toEqual({ ok: true, value: 7 });
 	});
@@ -224,7 +261,9 @@ describe("serialising writers inside one process", () => {
 	it("reports a file lock held elsewhere without running the section", async () => {
 		const foreign = held(await acquireLock(target, FAST));
 		let ran = false;
-		const result = await withTargetLock(target, FAST, async () => { ran = true; });
+		const result = await withTargetLock(target, FAST, async () => {
+			ran = true;
+		});
 		expect(result).toMatchObject({ ok: false, kind: "contended" });
 		expect(ran).toBe(false);
 		await foreign.release();
@@ -236,7 +275,9 @@ describe("serialising writers inside one process", () => {
 		const first = withTargetLock(target, FAST, () => gate);
 		const controller = new AbortController();
 		let ran = false;
-		const queued = withTargetLock(target, { ...FAST, signal: controller.signal }, async () => { ran = true; });
+		const queued = withTargetLock(target, { ...FAST, signal: controller.signal }, async () => {
+			ran = true;
+		});
 		await sleep(20);
 		controller.abort();
 		expect(await queued).toMatchObject({ ok: false, kind: "cancelled" });

@@ -1,56 +1,59 @@
 {
-  "name": "opinionated-modular-pi-todo-system-ompts",
-  "version": "0.0.0",
-  "private": true,
-  "description": "Pi todo extension with normal and OpenSpec sync modes. A local derivative of @juicesharp/rpiv-todo 2.11.0.",
-  "author": "Muhammad Aizat Md Hawari",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/cmdaltctr/opinionated-modular-pi-todo-system-ompts.git"
-  },
-  "homepage": "https://github.com/cmdaltctr/opinionated-modular-pi-todo-system-ompts#readme",
-  "bugs": {
-    "url": "https://github.com/cmdaltctr/opinionated-modular-pi-todo-system-ompts/issues"
-  },
-  "keywords": [
-    "pi-extension",
-    "todo",
-    "openspec",
-    "pi-package"
-  ],
-  "engines": {
-    "node": ">=22"
-  },
-  "type": "module",
-  "pi": {
-    "extensions": [
-      "./src/extension.ts"
-    ]
-  },
-  "scripts": {
-    "setup:host": "./scripts/setup-host.sh",
-    "lint": "oxlint --deny-warnings",
-    "lint:fix": "oxlint --fix",
-    "typecheck": "tsc -p .",
-    "test": "vitest run",
-    "audit": "bun audit",
-    "ci": "bun run lint && bun run typecheck && bun run test",
-    "ci:clean": "./scripts/ci-clean.sh",
-    "prepare": "husky || true"
-  },
-  "peerDependencies": {
-    "@earendil-works/pi-ai": "*",
-    "@earendil-works/pi-coding-agent": "*",
-    "@earendil-works/pi-tui": "*",
-    "typebox": "*"
-  },
-  "devDependencies": {
-    "@types/node": "^26.6.3",
-    "husky": "^9.1.7",
-    "oxlint": "^1.86.0",
-    "typescript": "^7.0.2",
-    "vite": "^8.3.1",
-    "vitest": "^5.0.3"
-  }
+	"name": "opinionated-modular-pi-todo-system-ompts",
+	"version": "0.0.0",
+	"private": true,
+	"description": "Pi todo extension with normal and OpenSpec sync modes. A local derivative of @juicesharp/rpiv-todo 2.11.0.",
+	"keywords": [
+		"openspec",
+		"pi-extension",
+		"pi-package",
+		"todo"
+	],
+	"homepage": "https://github.com/cmdaltctr/opinionated-modular-pi-todo-system-ompts#readme",
+	"bugs": {
+		"url": "https://github.com/cmdaltctr/opinionated-modular-pi-todo-system-ompts/issues"
+	},
+	"license": "MIT",
+	"author": "Muhammad Aizat Md Hawari",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/cmdaltctr/opinionated-modular-pi-todo-system-ompts.git"
+	},
+	"type": "module",
+	"scripts": {
+		"setup:host": "./scripts/setup-host.sh",
+		"format": "oxfmt --write",
+		"format:check": "oxfmt --check",
+		"lint": "oxlint --deny-warnings",
+		"lint:fix": "oxlint --fix",
+		"typecheck": "tsc -p .",
+		"test": "vitest run",
+		"audit": "bun audit",
+		"ci": "bun run format:check && bun run lint && bun run typecheck && bun run test",
+		"ci:clean": "./scripts/ci-clean.sh",
+		"prepare": "husky || true"
+	},
+	"devDependencies": {
+		"@types/node": "^26.6.3",
+		"husky": "^9.1.7",
+		"oxfmt": "^0.71.0",
+		"oxlint": "^1.86.0",
+		"typescript": "^7.0.2",
+		"vite": "^8.3.1",
+		"vitest": "^5.0.3"
+	},
+	"peerDependencies": {
+		"@earendil-works/pi-ai": "*",
+		"@earendil-works/pi-coding-agent": "*",
+		"@earendil-works/pi-tui": "*",
+		"typebox": "*"
+	},
+	"engines": {
+		"node": ">=22"
+	},
+	"pi": {
+		"extensions": [
+			"./src/extension.ts"
+		]
+	}
 }

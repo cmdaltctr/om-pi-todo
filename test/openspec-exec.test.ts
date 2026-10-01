@@ -41,7 +41,8 @@ beforeAll(() => {
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
 const work = () => join(dir, "work");
-const run = (args: string[], extra: Record<string, unknown> = {}) => runOpenspecJson(args, { cwd: work(), command: fake, ...extra });
+const run = (args: string[], extra: Record<string, unknown> = {}) =>
+	runOpenspecJson(args, { cwd: work(), command: fake, ...extra });
 
 function alive(pid: number): boolean {
 	try {
@@ -65,7 +66,17 @@ describe("arguments and working directory", () => {
 	});
 
 	it("passes every argument literally, with no shell interpretation", async () => {
-		const hostile = ["; touch PWNED", "$(touch PWNED)", "`touch PWNED`", "a b  c", "'quoted'", '"double"', "--json; rm -rf /", "*", "\n"];
+		const hostile = [
+			"; touch PWNED",
+			"$(touch PWNED)",
+			"`touch PWNED`",
+			"a b  c",
+			"'quoted'",
+			'"double"',
+			"--json; rm -rf /",
+			"*",
+			"\n",
+		];
 		const result = await run(["echo", ...hostile]);
 		expect(result.ok && (result.json as any).args).toEqual(["echo", ...hostile]);
 		expect(existsSync(join(work(), "PWNED"))).toBe(false);
@@ -118,7 +129,10 @@ describe("output handling", () => {
 	});
 
 	it("falls back to plain stdout text, and prefers stderr when both exist", async () => {
-		expect(await run(["exit-text"])).toMatchObject({ ok: false, message: "OpenSpec exited with code 3: plain failure text on stdout" });
+		expect(await run(["exit-text"])).toMatchObject({
+			ok: false,
+			message: "OpenSpec exited with code 3: plain failure text on stdout",
+		});
 		const both = await run(["exit-both"]);
 		expect(!both.ok && both.message).toBe("OpenSpec exited with code 4: stderr detail");
 	});

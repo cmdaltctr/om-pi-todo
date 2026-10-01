@@ -139,7 +139,8 @@ export const TodoParamsSchema = Type.Object({
 	),
 	waitingReason: Type.Optional(
 		Type.String({
-			description: "Why work is paused for someone else, such as an approval or a review. Pass an empty string to clear it.",
+			description:
+				"Why work is paused for someone else, such as an approval or a review. Pass an empty string to clear it.",
 		}),
 	),
 	failureReason: Type.Optional(

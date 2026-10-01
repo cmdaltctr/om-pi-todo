@@ -45,11 +45,13 @@ describe("narrow checkbox patch", () => {
 			["  * [ ] Task\n", "  * [x] Task\n"],
 			["\t- [ ] Task\n", "\t- [x] Task\n"],
 		];
-		for (const [before, after] of cases) expect(expectOk(patchCompletion(buf(before), target("Task"))).bytes.toString()).toBe(after);
+		for (const [before, after] of cases)
+			expect(expectOk(patchCompletion(buf(before), target("Task"))).bytes.toString()).toBe(after);
 	});
 
 	it("preserves every other byte: line endings, BOM, tabs, unicode, missing final newline", () => {
-		const text = "﻿# 日本語 Tâche ☕\r\n\r\n- [x] Done 🚀\r\n- [ ] Target\tvalue  \r\n  - [ ] Child\n\ttail without newline";
+		const text =
+			"﻿# 日本語 Tâche ☕\r\n\r\n- [x] Done 🚀\r\n- [ ] Target\tvalue  \r\n  - [ ] Child\n\ttail without newline";
 		const original = buf(text);
 		const result = expectOk(patchCompletion(original, target("Target\tvalue")));
 		expect(result.bytes.length).toBe(original.length);
@@ -84,7 +86,9 @@ describe("narrow checkbox patch", () => {
 		const original = buf("- [x] One\n- [ ] Two\n- [ ]\n- [~] Three\n  - [ ] Four\n");
 		const before = listTasks(scanTasks(original.toString()));
 		const after = listTasks(scanTasks(expectOk(patchCompletion(original, target("Three"))).bytes.toString()));
-		expect(after.map((t) => [t.description, t.done])).toEqual(before.map((t) => [t.description, t.description === "Three" ? true : t.done]));
+		expect(after.map((t) => [t.description, t.done])).toEqual(
+			before.map((t) => [t.description, t.description === "Three" ? true : t.done]),
+		);
 	});
 });
 
@@ -97,7 +101,8 @@ describe("already completed tasks", () => {
 	});
 
 	it("treats upper-case X and padded x as done", () => {
-		for (const box of ["[X]", "[ x ]", "[x ]"]) expect(expectOk(patchCompletion(buf(`- ${box} Done\n`), target("Done"))).changed).toBe(false);
+		for (const box of ["[X]", "[ x ]", "[x ]"])
+			expect(expectOk(patchCompletion(buf(`- ${box} Done\n`), target("Done"))).changed).toBe(false);
 	});
 });
 
@@ -130,7 +135,7 @@ describe("random files", () => {
 	it("patch exactly one marker byte and keep every other byte", () => {
 		let seed = 424242;
 		const next = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32;
-		const pick = <T,>(items: T[]) => items[Math.floor(next() * items.length)];
+		const pick = <T>(items: T[]) => items[Math.floor(next() * items.length)];
 		for (let round = 0; round < 200; round++) {
 			let text = "";
 			for (let i = 0, n = 1 + Math.floor(next() * 10); i < n; i++) {
@@ -150,7 +155,9 @@ describe("random files", () => {
 					continue;
 				}
 				const after = listTasks(scanTasks(done.bytes.toString()));
-				expect(after.map((x) => [x.description, x.done])).toEqual(listTasks(scanTasks(text)).map((x) => [x.description, x.fingerprint === t.fingerprint ? true : x.done]));
+				expect(after.map((x) => [x.description, x.done])).toEqual(
+					listTasks(scanTasks(text)).map((x) => [x.description, x.fingerprint === t.fingerprint ? true : x.done]),
+				);
 				expect(done.bytes.length - original.length).toBeLessThanOrEqual(1);
 			}
 		}
@@ -163,13 +170,21 @@ afterAll(() => fixture.cleanup());
 
 describe.skipIf(!HAS_CLI)("patched files as the installed CLI reads them", () => {
 	it("shows exactly the patched task as done", () => {
-		const variants = ["- [ ] Target\n- [ ] Other\n", "- [~] Target\r\n- [ ] Other\r\n", "- [] Target\n- [x] Other\n", "1. [ ] Target\n  - [ ] Other\n"];
+		const variants = [
+			"- [ ] Target\n- [ ] Other\n",
+			"- [~] Target\r\n- [ ] Other\r\n",
+			"- [] Target\n- [x] Other\n",
+			"1. [ ] Target\n  - [ ] Other\n",
+		];
 		variants.forEach((text, i) => {
 			const name = `patched-${i}`;
 			const { tasksPath } = fixture.addChange(name, text);
 			const result = expectOk(patchCompletion(buf(text), target("Target")));
 			require("node:fs").writeFileSync(tasksPath, result.bytes);
-			const run = spawnSync("openspec", ["instructions", "apply", "--change", name, "--json"], { cwd: fixture.root, encoding: "utf-8" });
+			const run = spawnSync("openspec", ["instructions", "apply", "--change", name, "--json"], {
+				cwd: fixture.root,
+				encoding: "utf-8",
+			});
 			const tasks = JSON.parse(run.stdout).tasks as Array<{ description: string; done: boolean }>;
 			expect(tasks.find((t) => t.description === "Target")?.done).toBe(true);
 			const other = text.includes("[x] Other");

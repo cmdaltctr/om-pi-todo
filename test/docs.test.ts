@@ -58,11 +58,16 @@ describe("tool examples in the docs match the product", () => {
 
 	it("the incidental example is accepted in sync mode", async () => {
 		setSessionMode("sync", { mode: "openspec", binding: { root: "/none", change: "a" } });
-		const runtime = createRuntime({ getOrdinary: (id) => getState(id).tasks, run: async () => ({ ok: false, kind: "spawn", message: "none" }) });
+		const runtime = createRuntime({
+			getOrdinary: (id) => getState(id).tasks,
+			run: async () => ({ ok: false, kind: "spawn", message: "none" }),
+		});
 		const host = createHost();
 		registerTodoTool(host.pi, runtime);
 		const example = calls.find((v) => v.scope === "incidental")!;
-		expect((await callTool(host, createCtx("sync", []), example)).text).toBe("Created #1: Debug flaky test (pending) [incidental]");
+		expect((await callTool(host, createCtx("sync", []), example)).text).toBe(
+			"Created #1: Debug flaky test (pending) [incidental]",
+		);
 		runtime.stopAll();
 	});
 });
@@ -83,7 +88,9 @@ describe("commands and menus in the docs match the product", () => {
 		const host = createHost();
 		registerTodosCommand(host.pi);
 		const notes: string[] = [];
-		await host.commands.get("todos").handler("refresh", createCtx("s1", [], { hasUI: true, ui: { notify: (m: string) => notes.push(m) } }));
+		await host.commands
+			.get("todos")
+			.handler("refresh", createCtx("s1", [], { hasUI: true, ui: { notify: (m: string) => notes.push(m) } }));
 		expect(notes).toEqual(["Todo panel refreshed."]);
 	});
 
@@ -95,17 +102,31 @@ describe("commands and menus in the docs match the product", () => {
 		await host.commands.get("todo-settings").handler("", createCtx("s1", [], { hasUI: true, ui: script.ui }));
 		const options = script.calls[0].args[1] as string[];
 		for (const label of ["Session mode", "Default mode for new sessions", "Panel line budget", "Collapse key"]) {
-			expect(options.some((o) => o.startsWith(label)), label).toBe(true);
+			expect(
+				options.some((o) => o.startsWith(label)),
+				label,
+			).toBe(true);
 			expect(usage, label).toContain(`**${label}**`);
 		}
 	});
 
 	it("the marks the guide explains are marks the product draws", () => {
 		const src = ["src/todo-overlay.ts", "src/view/format.ts", "src/view/presentation.ts"].map(read).join("\n");
-		for (const mark of ["⚠", "↻", "Idle", "Paused", "Blocked by", "all completed", "OpenSpec", "incidental", "completed hidden"]) {
+		for (const mark of [
+			"⚠",
+			"↻",
+			"Idle",
+			"Paused",
+			"Blocked by",
+			"all completed",
+			"OpenSpec",
+			"incidental",
+			"completed hidden",
+		]) {
 			expect(src, mark).toContain(mark);
 		}
-		for (const mark of ["⚠ stale", "↻", "`Idle`", "`Paused`", "Blocked by #3", "all completed"]) expect(usage, mark).toContain(mark);
+		for (const mark of ["⚠ stale", "↻", "`Idle`", "`Paused`", "Blocked by #3", "all completed"])
+			expect(usage, mark).toContain(mark);
 	});
 
 	it("the limits and file names it states are enforced by the code", async () => {
@@ -117,7 +138,15 @@ describe("commands and menus in the docs match the product", () => {
 		expect(usage).toContain("~/.config/pi-todo/config.json");
 		expect(uninstall).toContain("~/.config/pi-todo/config.json");
 		const { checkStatus } = await import("../src/openspec/discover.js");
-		const other = checkStatus({ schemaName: "custom", changeRoot: "/r/c", artifactPaths: { tasks: { existingOutputPaths: ["/r/c/tasks.md"] } }, root: { path: "/r" } }, { path: "/r" });
+		const other = checkStatus(
+			{
+				schemaName: "custom",
+				changeRoot: "/r/c",
+				artifactPaths: { tasks: { existingOutputPaths: ["/r/c/tasks.md"] } },
+				root: { path: "/r" },
+			},
+			{ path: "/r" },
+		);
 		expect(other).toMatchObject({ supported: false, reason: expect.stringContaining("spec-driven") });
 		expect(usage).toContain("`spec-driven`");
 	});
@@ -210,7 +239,8 @@ describe("install and uninstall guides match the package", () => {
 
 describe("the local gate, the hook and CI run the same steps", () => {
 	it("package.json ci runs lint, types and tests, and the hook runs ci", () => {
-		for (const step of ["bun run lint", "bun run typecheck", "bun run test"]) expect(pkg.scripts.ci, step).toContain(step);
+		for (const step of ["bun run format:check", "bun run lint", "bun run typecheck", "bun run test"])
+			expect(pkg.scripts.ci, step).toContain(step);
 		expect(pkg.scripts["ci:clean"]).toBe("./scripts/ci-clean.sh");
 		expect(read(".husky/pre-push")).toContain("bun run ci:clean");
 	});
@@ -219,14 +249,21 @@ describe("the local gate, the hook and CI run the same steps", () => {
 		const script = read("scripts/ci-clean.sh");
 		expect(script).toContain("git clone");
 		expect(script).toContain("bun install --frozen-lockfile");
-		expect(script).toContain('export HUSKY=0');
+		expect(script).toContain("export HUSKY=0");
 		expect(script).toContain("bun run ci");
 		expect(read(".github/workflows/ci.yml")).toContain('HUSKY: "0"');
 	});
 
 	it("the workflow runs the same three steps and installs from the lockfile", () => {
 		const workflow = read(".github/workflows/ci.yml");
-		for (const step of ["bun run lint", "bun run typecheck", "bun run test", "bun run setup:host", "bun install --frozen-lockfile"]) {
+		for (const step of [
+			"bun run format:check",
+			"bun run lint",
+			"bun run typecheck",
+			"bun run test",
+			"bun run setup:host",
+			"bun install --frozen-lockfile",
+		]) {
 			expect(workflow, step).toContain(step);
 		}
 		expect(workflow).toContain("permissions:\n  contents: read");
@@ -249,7 +286,21 @@ describe("the local gate, the hook and CI run the same steps", () => {
 
 describe("the repository holds nothing personal", () => {
 	it("no tracked doc, config or script names a home directory", () => {
-		const files = ["README.md", "AGENTS.md", "NOTICE.md", "docs/INSTALL.md", "docs/USAGE.md", "docs/UNINSTALL.md", "docs/VERIFICATION.md", "tsconfig.json", "vitest.config.ts", "package.json", "scripts/setup-host.sh", ".github/workflows/ci.yml", ".husky/pre-push"];
+		const files = [
+			"README.md",
+			"AGENTS.md",
+			"NOTICE.md",
+			"docs/INSTALL.md",
+			"docs/USAGE.md",
+			"docs/UNINSTALL.md",
+			"docs/VERIFICATION.md",
+			"tsconfig.json",
+			"vitest.config.ts",
+			"package.json",
+			"scripts/setup-host.sh",
+			".github/workflows/ci.yml",
+			".husky/pre-push",
+		];
 		for (const f of files) expect(read(f), f).not.toMatch(/\/Users\/|\/home\/[a-z]+\/|\.pi-backups/);
 	});
 });

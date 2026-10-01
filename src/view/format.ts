@@ -155,10 +155,7 @@ export function renderTodoCall(
 
 	if (args.action === "create" && args.subject) {
 		text += ` ${theme.fg("dim", sanitizeTerminalText(args.subject))}`;
-	} else if (
-		(args.action === "update" || args.action === "get" || args.action === "delete") &&
-		args.id !== undefined
-	) {
+	} else if ((args.action === "update" || args.action === "get" || args.action === "delete") && args.id !== undefined) {
 		const subject = selectTaskSubjectById(state, args.id);
 		text += ` ${theme.fg("accent", subject ? sanitizeTerminalText(subject) : `#${args.id}`)}`;
 	} else if (args.action === "list" && args.status) {

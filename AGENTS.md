@@ -6,15 +6,15 @@ A todo extension for the Pi coding agent. It has a normal mode and an OpenSpec s
 
 The entry point is `src/extension.ts`. Pi calls its default export once with the `ExtensionAPI` object.
 
-| Path | Responsibility |
-| --- | --- |
-| `src/extension.ts` | Wires Pi events, the runtime, the panel and the commands. |
-| `src/todo.ts` | Registers the `todo` tool and the `/todos` command. |
-| `src/state/` | Pure task rules (reducer), the per-session store, replay, run state. |
-| `src/openspec/` | Everything that touches OpenSpec: CLI runner, discovery, task scanner, reconcile, snapshot provider, patch, lock, writer, watcher. |
-| `src/sync/` | Sync-mode runtime, the sync `todo` path, shared view text, saved session data. |
-| `src/view/`, `src/todo-overlay.ts` | Panel rendering and row presentation. |
-| `src/preferences.ts`, `src/session-mode.ts`, `src/settings.ts` | Global settings, per-session mode, `/todo-settings`. |
+| Path                                                           | Responsibility                                                                                                                     |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `src/extension.ts`                                             | Wires Pi events, the runtime, the panel and the commands.                                                                          |
+| `src/todo.ts`                                                  | Registers the `todo` tool and the `/todos` command.                                                                                |
+| `src/state/`                                                   | Pure task rules (reducer), the per-session store, replay, run state.                                                               |
+| `src/openspec/`                                                | Everything that touches OpenSpec: CLI runner, discovery, task scanner, reconcile, snapshot provider, patch, lock, writer, watcher. |
+| `src/sync/`                                                    | Sync-mode runtime, the sync `todo` path, shared view text, saved session data.                                                     |
+| `src/view/`, `src/todo-overlay.ts`                             | Panel rendering and row presentation.                                                                                              |
+| `src/preferences.ts`, `src/session-mode.ts`, `src/settings.ts` | Global settings, per-session mode, `/todo-settings`.                                                                               |
 
 Keep these boundaries.
 
@@ -36,17 +36,19 @@ bun install
 bun run setup:host
 ```
 
-| Purpose | Command | Needs |
-| --- | --- | --- |
-| Install tools | `bun install` | Network |
-| Fetch Pi host packages into `.pi-host/` | `bun run setup:host` | Network, `npm` |
-| Lint | `bun run lint` | |
-| Type check | `bun run typecheck` | `.pi-host/` |
-| All tests | `bun run test` | `.pi-host/` |
-| One test file | `./node_modules/.bin/vitest run test/<name>.test.ts` | `.pi-host/` |
-| Full gate on your working folder | `bun run ci` | `.pi-host/` |
-| Full gate on a fresh clone of HEAD | `bun run ci:clean` | `.pi-host/`, a commit |
-| Dependency audit | `bun run audit` | Network |
+| Purpose                                 | Command                                              | Needs                 |
+| --------------------------------------- | ---------------------------------------------------- | --------------------- |
+| Install tools                           | `bun install`                                        | Network               |
+| Fetch Pi host packages into `.pi-host/` | `bun run setup:host`                                 | Network, `npm`        |
+| Format check                            | `bun run format:check`                               |                       |
+| Format files                            | `bun run format`                                     |                       |
+| Lint                                    | `bun run lint`                                       |                       |
+| Type check                              | `bun run typecheck`                                  | `.pi-host/`           |
+| All tests                               | `bun run test`                                       | `.pi-host/`           |
+| One test file                           | `./node_modules/.bin/vitest run test/<name>.test.ts` | `.pi-host/`           |
+| Full gate on your working folder        | `bun run ci`                                         | `.pi-host/`           |
+| Full gate on a fresh clone of HEAD      | `bun run ci:clean`                                   | `.pi-host/`, a commit |
+| Dependency audit                        | `bun run audit`                                      | Network               |
 
 - Real-CLI tests need `openspec` 1.13.1 on the PATH. They skip when it is missing.
 - Startup tests need `pi` on the PATH. They skip when it is missing.
@@ -57,14 +59,14 @@ bun run setup:host
 
 Test files group by area.
 
-| Area | Files |
-| --- | --- |
-| Normal mode and replay | `normal-mode`, `legacy-replay`, `session-mode`, `preferences`, `settings` |
-| OpenSpec reading | `openspec-exec`, `discover`, `task-parity`, `reconcile`, `snapshot` |
-| OpenSpec writing | `patch`, `lock`, `writer` |
+| Area                      | Files                                                                                         |
+| ------------------------- | --------------------------------------------------------------------------------------------- |
+| Normal mode and replay    | `normal-mode`, `legacy-replay`, `session-mode`, `preferences`, `settings`                     |
+| OpenSpec reading          | `openspec-exec`, `discover`, `task-parity`, `reconcile`, `snapshot`                           |
+| OpenSpec writing          | `patch`, `lock`, `writer`                                                                     |
 | Tool, panel and lifecycle | `sync-tool`, `sync-runtime`, `sync-extension`, `overlay`, `presentation`, `panel-reliability` |
-| Acceptance | `acceptance-async`, `acceptance-cli`, `acceptance-screenshot`, `acceptance-static` |
-| Packaging and docs | `packaging`, `startup`, `docs` |
+| Acceptance                | `acceptance-async`, `acceptance-cli`, `acceptance-screenshot`, `acceptance-static`            |
+| Packaging and docs        | `packaging`, `startup`, `docs`                                                                |
 
 - Write the test before the fix. Confirm it fails on the broken code.
 - After a test passes, break the code under test in a scratch copy. Confirm the test fails. Never commit that break.
@@ -90,7 +92,7 @@ Test files group by area.
 - Import local files with the `.js` suffix, for example `./preferences.js`.
 - Write comments in British English. Say why, not what.
 - Name test files `<topic>.test.ts`. Put shared helpers in `test/*.ts` without the `.test` suffix.
-- Run `bun run lint:fix`, then `bun run lint`. Oxlint runs with warnings denied.
+- Run `bun run format`, then `bun run lint:fix`, then `bun run lint`. Oxfmt formats code. Oxlint finds bugs and runs with warnings denied.
 - Do not disable a lint rule inline without a reason in the same comment.
 
 ## Error handling

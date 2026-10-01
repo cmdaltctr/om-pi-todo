@@ -4,11 +4,11 @@ This guide shows how to use the todo list, in both modes.
 
 ## The three commands
 
-| Command | What it does |
-| --- | --- |
-| `/todos` | Shows your tasks. In sync mode it also shows the OpenSpec change and its progress. |
+| Command          | What it does                                                                                   |
+| ---------------- | ---------------------------------------------------------------------------------------------- |
+| `/todos`         | Shows your tasks. In sync mode it also shows the OpenSpec change and its progress.             |
 | `/todos refresh` | Redraws the panel. In sync mode it reads the change again first. It never changes a task file. |
-| `/todo-settings` | Opens the settings menu. |
+| `/todo-settings` | Opens the settings menu.                                                                       |
 
 ## Normal mode
 
@@ -67,16 +67,16 @@ The panel sits above the editor. Its heading shows progress.
 
 Marks on the heading and rows:
 
-| You see | It means |
-| --- | --- |
-| `⚠ stale` or `⚠ unavailable` | The OpenSpec view could not be read. Linked changes are off until it can. |
-| `↻` | A read is running. You see the last good view meanwhile. |
-| `Idle` | The agent finished its turn. The task is still open. |
-| `Paused` | You stopped the agent, or it hit an error. The task is still open. |
-| `Blocked by #3` | Task 3 must finish first. |
-| `waiting: …` and `failed: …` | The reasons the agent gave. |
-| `+2 more (2 completed hidden)` | Done rows are hidden. The count still includes them. |
-| `all completed (5 rows hidden)` | Every task is done. |
+| You see                         | It means                                                                  |
+| ------------------------------- | ------------------------------------------------------------------------- |
+| `⚠ stale` or `⚠ unavailable`    | The OpenSpec view could not be read. Linked changes are off until it can. |
+| `↻`                             | A read is running. You see the last good view meanwhile.                  |
+| `Idle`                          | The agent finished its turn. The task is still open.                      |
+| `Paused`                        | You stopped the agent, or it hit an error. The task is still open.        |
+| `Blocked by #3`                 | Task 3 must finish first.                                                 |
+| `waiting: …` and `failed: …`    | The reasons the agent gave.                                               |
+| `+2 more (2 completed hidden)`  | Done rows are hidden. The count still includes them.                      |
+| `all completed (5 rows hidden)` | Every task is done.                                                       |
 
 When the agent stops with work still open, you get one reminder that lists the open tasks. It never ticks a box and never restarts the agent.
 
@@ -133,7 +133,13 @@ Create a task:
 Start a linked task. `expectedRevision` comes from the latest `list`, `get` or result:
 
 ```json
-{ "action": "update", "id": 2, "status": "in_progress", "activeForm": "writing tests", "expectedRevision": "0123456789abcdef" }
+{
+	"action": "update",
+	"id": 2,
+	"status": "in_progress",
+	"activeForm": "writing tests",
+	"expectedRevision": "0123456789abcdef"
+}
 ```
 
 Complete a linked task:

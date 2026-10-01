@@ -1,0 +1,7 @@
+{
+	"$schema": "./node_modules/oxfmt/configuration_schema.json",
+	"useTabs": true,
+	"printWidth": 120,
+	"singleQuote": false,
+	"ignorePatterns": [".pi-host/**", "node_modules/**", "bun.lock", "NOTICE.md", "LICENSE"]
+}

@@ -7,14 +7,14 @@ This page records how the extension was checked, what the security scan found, a
 
 ## Checks and results
 
-| Check | Command | Result |
-| --- | --- | --- |
-| Tests | `bun run test` | 30 files, 666 tests, all passing. About 25 seconds on an idle machine. |
-| Lint | `bun run lint` | Oxlint, warnings denied. No findings. |
-| Type check | `bun run typecheck` | `tsc` in strict mode. No errors. |
-| Dependency audit | `bun run audit` | No known vulnerabilities. |
-| Security scan | Aikido, over every source file | See below. |
-| Real CLI | Tests that run the installed `openspec` in temporary folders | Passing. They skip when `openspec` is missing. |
+| Check            | Command                                                      | Result                                                                 |
+| ---------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------- |
+| Tests            | `bun run test`                                               | 30 files, 666 tests, all passing. About 25 seconds on an idle machine. |
+| Lint             | `bun run lint`                                               | Oxlint, warnings denied. No findings.                                  |
+| Type check       | `bun run typecheck`                                          | `tsc` in strict mode. No errors.                                       |
+| Dependency audit | `bun run audit`                                              | No known vulnerabilities.                                              |
+| Security scan    | Aikido, over every source file                               | See below.                                                             |
+| Real CLI         | Tests that run the installed `openspec` in temporary folders | Passing. They skip when `openspec` is missing.                         |
 
 Run `bun run ci` to repeat the first three checks. GitHub Actions runs them on every push.
 
@@ -22,10 +22,10 @@ Run `bun run ci` to repeat the first three checks. GitHub Actions runs them on e
 
 The scan found one real issue. It also reports 16 findings of one type that I judge to be false alarms.
 
-| Finding | Count | Verdict | Action |
-| --- | ---: | --- | --- |
-| Token compared with `!==` in the lock release (`AIK_ts_node_timing_attack`) | 1 | Real pattern. Low risk, because the token is not a secret. | Fixed. The code now uses `crypto.timingSafeEqual`. |
-| File access with a path variable (`AIK_ts_generic_path_traversal`) | 16 | False alarms. Every path is contained. | Not suppressed in Aikido. The owner decides. |
+| Finding                                                                     | Count | Verdict                                                    | Action                                             |
+| --------------------------------------------------------------------------- | ----: | ---------------------------------------------------------- | -------------------------------------------------- |
+| Token compared with `!==` in the lock release (`AIK_ts_node_timing_attack`) |     1 | Real pattern. Low risk, because the token is not a secret. | Fixed. The code now uses `crypto.timingSafeEqual`. |
+| File access with a path variable (`AIK_ts_generic_path_traversal`)          |    16 | False alarms. Every path is contained.                     | Not suppressed in Aikido. The owner decides.       |
 
 Why the path findings are false alarms:
 
@@ -39,26 +39,26 @@ Why the path findings are false alarms:
 
 Each safeguard was removed in a scratch copy of the code. The suite was then run. A removal counts as caught when at least one test fails.
 
-| Safeguard removed | Tests that failed |
-| --- | ---: |
-| Confirming CLI read after the write | 7 |
-| Check that the same task is confirmed | 7 |
-| Waiting for the write to finish | 3 |
-| Redraw after a completed write | 1 |
-| Redraw after any tool update | 15 |
-| Redraw after a refresh | 9 |
-| Binding check on refresh | 3 |
-| Binding check before the file is replaced | 1 |
-| Binding check before the view is published | 2 |
-| One queue per file (not one queue for all files) | 2 |
-| Newest refresh wins over an older one | 2 |
-| Write block after an unconfirmed completion | 4 |
-| Lock release after a failed write | 1 |
-| Watcher closed on stop | 1 |
-| Watcher does not overlap runs | 1 |
-| No synchronous file read in the runtime | 1 |
-| Running mark tied to the agent run | 1 |
-| Abort signal passed to the CLI | 1 |
+| Safeguard removed                                | Tests that failed |
+| ------------------------------------------------ | ----------------: |
+| Confirming CLI read after the write              |                 7 |
+| Check that the same task is confirmed            |                 7 |
+| Waiting for the write to finish                  |                 3 |
+| Redraw after a completed write                   |                 1 |
+| Redraw after any tool update                     |                15 |
+| Redraw after a refresh                           |                 9 |
+| Binding check on refresh                         |                 3 |
+| Binding check before the file is replaced        |                 1 |
+| Binding check before the view is published       |                 2 |
+| One queue per file (not one queue for all files) |                 2 |
+| Newest refresh wins over an older one            |                 2 |
+| Write block after an unconfirmed completion      |                 4 |
+| Lock release after a failed write                |                 1 |
+| Watcher closed on stop                           |                 1 |
+| Watcher does not overlap runs                    |                 1 |
+| No synchronous file read in the runtime          |                 1 |
+| Running mark tied to the agent run               |                 1 |
+| Abort signal passed to the CLI                   |                 1 |
 
 A first pass ran only three test files and missed 11 of these. A second pass ran the whole suite and caught 10. The last one was a real gap. A test now checks that the caller's abort signal reaches every CLI call.
 

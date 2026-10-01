@@ -37,9 +37,17 @@ export function presentTask(task: Task, byId: ReadonlyMap<number, Task>, run: Ru
 	if (task.status === "deleted") return { kind: "completed", label: "deleted", running: false };
 
 	const blockers = unresolvedBlockers(task, byId);
-	if (blockers.length > 0) return { kind: "blocked", label: `Blocked by ${blockers.map((id) => `#${id}`).join(", ")}`, running: false, blockers };
+	if (blockers.length > 0)
+		return {
+			kind: "blocked",
+			label: `Blocked by ${blockers.map((id) => `#${id}`).join(", ")}`,
+			running: false,
+			blockers,
+		};
 
 	if (task.status === "pending") return { kind: "pending", label: "pending", running: false };
 	if (run === "running") return { kind: "running", label: "in progress", running: true };
-	return run === "paused" ? { kind: "paused", label: "Paused", running: false } : { kind: "idle", label: "Idle", running: false };
+	return run === "paused"
+		? { kind: "paused", label: "Paused", running: false }
+		: { kind: "idle", label: "Idle", running: false };
 }

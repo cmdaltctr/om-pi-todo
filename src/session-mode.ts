@@ -42,7 +42,9 @@ function parseEntryData(data: unknown): SessionMode | undefined {
 	if (v.mode === "normal") return { mode: "normal" };
 	if (v.mode !== "openspec") return undefined;
 	if (v.binding === undefined) return { mode: "openspec" };
-	return isBinding(v.binding) ? { mode: "openspec", binding: { root: v.binding.root, change: v.binding.change } } : undefined;
+	return isBinding(v.binding)
+		? { mode: "openspec", binding: { root: v.binding.root, change: v.binding.change } }
+		: undefined;
 }
 
 /**

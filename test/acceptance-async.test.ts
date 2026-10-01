@@ -41,7 +41,9 @@ describe("7.5 held I/O never blocks input, rendering or unrelated sessions", () 
 
 		// The loop is alive, an unrelated session works, input events dispatch, and the panel renders.
 		const ticks = ticksDuring(120);
-		expect((await t.call(plain, { action: "create", subject: "Unrelated" })).text).toBe("Created #1: Unrelated (pending)");
+		expect((await t.call(plain, { action: "create", subject: "Unrelated" })).text).toBe(
+			"Created #1: Unrelated (pending)",
+		);
 		await t.fire("agent_start", plain);
 		await t.fire("agent_end", plain, { messages: [{ role: "assistant", stopReason: "stop" }] });
 		await t.command("todos", plain);
@@ -98,14 +100,27 @@ describe("7.5 held I/O never blocks input, rendering or unrelated sessions", () 
 		const { t, sync, plain } = await twoSessions(md("- [ ] A"), { lock: { waitMs: 3000, pollMs: 10 } });
 		const rev = revisionOf((await t.call(sync, { action: "list" })).text);
 		const real = (await import("node:fs")).realpathSync(paths.tasksPath);
-		writeFileSync(lockPathFor(real), JSON.stringify({ pid: process.pid, host: (await import("node:os")).hostname(), createdAt: new Date().toISOString(), target: real, token: "f".repeat(32) }));
+		writeFileSync(
+			lockPathFor(real),
+			JSON.stringify({
+				pid: process.pid,
+				host: (await import("node:os")).hostname(),
+				createdAt: new Date().toISOString(),
+				target: real,
+				token: "f".repeat(32),
+			}),
+		);
 		let settled = false;
-		const waiting = t.call(sync, { action: "update", id: 1, status: "completed", expectedRevision: rev }).then((r) => ((settled = true), r));
+		const waiting = t
+			.call(sync, { action: "update", id: 1, status: "completed", expectedRevision: rev })
+			.then((r) => ((settled = true), r));
 		await sleep(100);
 		expect(settled).toBe(false); // waiting on the lock
 		const ticks = ticksDuring(100);
 		expect((await t.call(plain, { action: "create", subject: "Free" })).text).toContain("Created #1");
-		expect((await t.call(sync, { action: "create", subject: "Mine", scope: "incidental", reason: "r" })).text).toContain("Created #1");
+		expect(
+			(await t.call(sync, { action: "create", subject: "Mine", scope: "incidental", reason: "r" })).text,
+		).toContain("Created #1");
 		expect(await ticks).toBeGreaterThan(8);
 		expect(t.render()).toBeDefined();
 		(await import("node:fs")).rmSync(lockPathFor(real));
@@ -157,7 +172,9 @@ describe("7.6 persistence and CLI confirmation are held independently", () => {
 	it("held before the checkbox lands: nothing is reported, shown or written", async () => {
 		const x = await ready();
 		let resolved = false;
-		const pending = x.t.call(x.sync, { action: "update", id: 1, status: "completed", expectedRevision: x.rev }).then((r) => ((resolved = true), r));
+		const pending = x.t
+			.call(x.sync, { action: "update", id: 1, status: "completed", expectedRevision: x.rev })
+			.then((r) => ((resolved = true), r));
 		await until(() => x.persist.entered() > 0);
 		await sleep(60);
 		expect(resolved).toBe(false);
@@ -174,7 +191,9 @@ describe("7.6 persistence and CLI confirmation are held independently", () => {
 		x.persist.release();
 		let resolved = false;
 		const calls = x.applyCalls();
-		const pending = x.t.call(x.sync, { action: "update", id: 1, status: "completed", expectedRevision: x.rev }).then((r) => ((resolved = true), r));
+		const pending = x.t
+			.call(x.sync, { action: "update", id: 1, status: "completed", expectedRevision: x.rev })
+			.then((r) => ((resolved = true), r));
 		await until(() => x.confirm.entered() > 0);
 		await sleep(80);
 		expect(x.t.disk().toString()).toBe(md("- [x] A", "- [ ] B")); // persisted
@@ -266,19 +285,36 @@ describe("7.7 overlapping refreshes and contention", () => {
 			const otherTasks = join(otherChange, "tasks.md");
 			writeFileSync(otherTasks, md("- [ ] X"));
 			const { makeFakeCli } = await import("./fake-cli.js");
-			const cliA = makeFakeCli({ root: paths.root, change: "a", tasksPath: paths.tasksPath, changeRoot: paths.changeRoot });
+			const cliA = makeFakeCli({
+				root: paths.root,
+				change: "a",
+				tasksPath: paths.tasksPath,
+				changeRoot: paths.changeRoot,
+			});
 			const cliB = makeFakeCli({ root: other, change: "a", tasksPath: otherTasks, changeRoot: otherChange });
 			const hold = gate();
 			const t = await bootPanel({
 				paths,
 				content: md("- [ ] A"),
 				runtime: {
-					run: ((args: readonly string[], o: { cwd: string }) => (o.cwd === other ? cliB : cliA).run(args, o as any)) as any,
-					fs: { rename: async (from: string, to: string) => { if (to === (await import("node:fs")).realpathSync(paths.tasksPath)) await hold.hold(); renameSync(from, to); } },
+					run: ((args: readonly string[], o: { cwd: string }) =>
+						(o.cwd === other ? cliB : cliA).run(args, o as any)) as any,
+					fs: {
+						rename: async (from: string, to: string) => {
+							if (to === (await import("node:fs")).realpathSync(paths.tasksPath)) await hold.hold();
+							renameSync(from, to);
+						},
+					},
 				},
 			});
 			const one = t.session("one");
-			const two = t.session("two", [{ type: "custom", customType: "pi-todo-session", data: { mode: "openspec", binding: { root: other, change: "a" } } }]);
+			const two = t.session("two", [
+				{
+					type: "custom",
+					customType: "pi-todo-session",
+					data: { mode: "openspec", binding: { root: other, change: "a" } },
+				},
+			]);
 			await t.fire("session_start", one);
 			await t.fire("session_start", two);
 			await t.settle();
@@ -309,7 +345,9 @@ describe("7.7 overlapping refreshes and contention", () => {
 		expect(kinds).toEqual(["error", "ok"]); // one wins; the other holds an old revision and must refresh
 		const fresh = revisionOf((await t.call(sync, { action: "list" })).text);
 		const loser = a.details.error ? 1 : 2;
-		expect((await t.call(sync, { action: "update", id: loser, status: "completed", expectedRevision: fresh })).text).toContain("confirmed");
+		expect(
+			(await t.call(sync, { action: "update", id: loser, status: "completed", expectedRevision: fresh })).text,
+		).toContain("confirmed");
 		expect(t.disk().toString().match(/\[x\]/g)).toHaveLength(2);
 		expect(leftovers()).toEqual([]);
 	});
@@ -324,7 +362,13 @@ describe("7.8 faults around persistence give accurate outcomes and clean up", ()
 	const noLocksOrTemps = () => expect(leftovers()).toEqual([]);
 
 	it("rejection before persistence: nothing written, task incomplete, error reported", async () => {
-		const x = await armed({ fs: { writeStaged: async () => { throw new Error("staging rejected"); } } });
+		const x = await armed({
+			fs: {
+				writeStaged: async () => {
+					throw new Error("staging rejected");
+				},
+			},
+		});
 		const r = await x.t.call(x.sync, { action: "update", id: 1, status: "completed", expectedRevision: x.rev });
 		expect(r.text).toMatch(/^Error: The task file could not be written: staging rejected/);
 		expect(x.t.disk().toString()).toBe(md("- [ ] A", "- [ ] B"));
@@ -335,9 +379,12 @@ describe("7.8 faults around persistence give accurate outcomes and clean up", ()
 	it("timeout of the confirming CLI read after persistence: reported separately, no rollback, no second write", async () => {
 		const x = await armed();
 		let calls = 0;
-		x.t.cli!.hooks.apply = () => (++calls === 3 ? { ok: false, kind: "timeout", message: "OpenSpec command timed out after 15000 ms" } : undefined); // tool refresh, writer refresh, confirming read
+		x.t.cli!.hooks.apply = () =>
+			++calls === 3 ? { ok: false, kind: "timeout", message: "OpenSpec command timed out after 15000 ms" } : undefined; // tool refresh, writer refresh, confirming read
 		const r = await x.t.call(x.sync, { action: "update", id: 1, status: "completed", expectedRevision: x.rev });
-		expect(r.text).toMatch(/^Error: The checkbox for task #1 was written, but the OpenSpec view could not be refreshed/);
+		expect(r.text).toMatch(
+			/^Error: The checkbox for task #1 was written, but the OpenSpec view could not be refreshed/,
+		);
 		expect(x.t.disk().toString()).toBe(md("- [x] A", "- [ ] B"));
 		expect(x.t.renames).toHaveBeenCalledTimes(1);
 		x.t.cli!.hooks.apply = undefined;
@@ -356,7 +403,13 @@ describe("7.8 faults around persistence give accurate outcomes and clean up", ()
 		};
 		const controller = new AbortController();
 		const tool = x.t.host.tools.get("todo");
-		const pending = tool.execute("c", { action: "update", id: 1, status: "completed", expectedRevision: x.rev }, controller.signal, undefined, x.sync);
+		const pending = tool.execute(
+			"c",
+			{ action: "update", id: 1, status: "completed", expectedRevision: x.rev },
+			controller.signal,
+			undefined,
+			x.sync,
+		);
 		await until(() => hold.entered() > 0);
 		controller.abort();
 		hold.release();
@@ -373,7 +426,11 @@ describe("7.8 faults around persistence give accurate outcomes and clean up", ()
 		const controller = new AbortController();
 		const tool = x.t.host.tools.get("todo");
 		const before = x.t.cli!.calls.length;
-		for (const params of [{ action: "list" }, { action: "get", id: 1 }, { action: "update", id: 1, status: "in_progress", expectedRevision: x.rev }]) {
+		for (const params of [
+			{ action: "list" },
+			{ action: "get", id: 1 },
+			{ action: "update", id: 1, status: "in_progress", expectedRevision: x.rev },
+		]) {
 			await tool.execute("c", params, controller.signal, undefined, x.sync);
 		}
 		const made = x.t.cli!.calls.slice(before);
@@ -388,9 +445,17 @@ describe("7.8 faults around persistence give accurate outcomes and clean up", ()
 			await hold.hold();
 			return undefined;
 		};
-		const pending = early.t.call(early.sync, { action: "update", id: 1, status: "completed", expectedRevision: early.rev });
+		const pending = early.t.call(early.sync, {
+			action: "update",
+			id: 1,
+			status: "completed",
+			expectedRevision: early.rev,
+		});
 		await until(() => hold.entered() > 0);
-		await early.t.fire("session_start", early.t.session("sync", [{ type: "custom", customType: "pi-todo-session", data: { mode: "normal" } }]));
+		await early.t.fire(
+			"session_start",
+			early.t.session("sync", [{ type: "custom", customType: "pi-todo-session", data: { mode: "normal" } }]),
+		);
 		hold.release();
 		expect((await pending).text).toMatch(/^Error: /);
 		expect(early.t.disk().toString()).toBe(md("- [ ] A", "- [ ] B"));
@@ -399,7 +464,14 @@ describe("7.8 faults around persistence give accurate outcomes and clean up", ()
 
 	it("shutdown during the write releases the lock and leaves no watcher or late repaint", async () => {
 		const persist = gate();
-		const x = await armed({ fs: { rename: async (a: string, b: string) => { await persist.hold(); renameSync(a, b); } } });
+		const x = await armed({
+			fs: {
+				rename: async (a: string, b: string) => {
+					await persist.hold();
+					renameSync(a, b);
+				},
+			},
+		});
 		const pending = x.t.call(x.sync, { action: "update", id: 1, status: "completed", expectedRevision: x.rev });
 		await until(() => persist.entered() > 0);
 		await x.t.fire("session_shutdown", x.sync);
@@ -425,7 +497,9 @@ describe("7.8 faults around persistence give accurate outcomes and clean up", ()
 		expect(bad.text).toMatch(/^Error: /);
 		expect(x.t.disk().toString()).toBe(md("- [ ] A", "- [ ] B"));
 		const fresh = revisionOf((await x.t.call(x.sync, { action: "list" })).text);
-		expect((await x.t.call(x.sync, { action: "update", id: 1, status: "completed", expectedRevision: fresh })).text).toContain("confirmed");
+		expect(
+			(await x.t.call(x.sync, { action: "update", id: 1, status: "completed", expectedRevision: fresh })).text,
+		).toContain("confirmed");
 	});
 });
 
@@ -446,7 +520,9 @@ describe("7.9 recovery after a rejected async operation", () => {
 		expect(done.text).toContain("could not be repainted");
 		t.widget.tui.requestRender.mockImplementation(() => undefined);
 		const next = revisionOf((await t.call(sync, { action: "list" })).text);
-		expect((await t.call(sync, { action: "update", id: 2, status: "completed", expectedRevision: next })).text).toContain("confirmed");
+		expect(
+			(await t.call(sync, { action: "update", id: 2, status: "completed", expectedRevision: next })).text,
+		).toContain("confirmed");
 		expect(t.disk().toString()).toBe(md("- [x] A", "- [x] B"));
 	});
 
@@ -472,11 +548,22 @@ describe("7.9 recovery after a rejected async operation", () => {
 		const { t, sync } = await twoSessions(md("- [ ] A", "- [ ] B"), { lock: { waitMs: 60, pollMs: 10 } });
 		const rev = revisionOf((await t.call(sync, { action: "list" })).text);
 		const real = (await import("node:fs")).realpathSync(paths.tasksPath);
-		writeFileSync(lockPathFor(real), JSON.stringify({ pid: 1, host: "elsewhere", createdAt: new Date().toISOString(), target: real, token: "a".repeat(32) }));
+		writeFileSync(
+			lockPathFor(real),
+			JSON.stringify({
+				pid: 1,
+				host: "elsewhere",
+				createdAt: new Date().toISOString(),
+				target: real,
+				token: "a".repeat(32),
+			}),
+		);
 		const blocked = await t.call(sync, { action: "update", id: 1, status: "completed", expectedRevision: rev });
 		expect(blocked.text).toContain("locked by process 1 on elsewhere");
 		(await import("node:fs")).rmSync(lockPathFor(real));
 		const fresh = revisionOf((await t.call(sync, { action: "list" })).text);
-		expect((await t.call(sync, { action: "update", id: 1, status: "completed", expectedRevision: fresh })).text).toContain("confirmed");
+		expect(
+			(await t.call(sync, { action: "update", id: 1, status: "completed", expectedRevision: fresh })).text,
+		).toContain("confirmed");
 	});
 });

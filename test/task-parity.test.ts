@@ -18,7 +18,10 @@ let counter = 0;
 function cliView(content: string | Buffer): CliApply {
 	const name = `case-${counter++}`;
 	fixture.addChange(name, content);
-	const run = spawnSync("openspec", ["instructions", "apply", "--change", name, "--json"], { cwd: fixture.root, encoding: "utf-8" });
+	const run = spawnSync("openspec", ["instructions", "apply", "--change", name, "--json"], {
+		cwd: fixture.root,
+		encoding: "utf-8",
+	});
 	expect(run.status, run.stderr).toBe(0);
 	return JSON.parse(run.stdout);
 }
@@ -42,10 +45,14 @@ const CASES: Record<string, string> = {
 	"mixed line endings": "- [ ] One\r\n- [x] Two\n- [ ] Three\r\n",
 	"bare CR only": "- [ ] One\r- [x] Two\r",
 	"nesting and tabs": "- [ ] Top\n  - [ ] Child\n    - [x] Grandchild\n\t- [ ] Tabbed\n\t\t- [ ] Deep tab\n",
-	"list markers": "- [ ] dash\n* [ ] star\n+ [ ] plus\n1. [ ] ordered dot\n2) [x] ordered paren\n123456789. [ ] nine digits\n1234567890. [ ] ten digits\n",
-	"marker variants": "- [~] tilde\n- [-] dash\n- [ x ] padded\n- [X] upper\n- [?] question\n- [1] digit\n- [xx] two chars\n- [WIP] word\n- [x]glued\n",
-	"link bullets are not tasks": "- [A](https://example.com)\n- [1](./one)\n- [a][ref]\n- [Some doc](./doc.md)\n- [ ](https://example.com)\n- [ ][ref]\n- [ ] Real task\n",
-	"fences and comments still count": "```md\n- [ ] in a fence\n```\n<!-- - [ ] in a comment -->\n- [ ] after\n    - [ ] indented code-like\n",
+	"list markers":
+		"- [ ] dash\n* [ ] star\n+ [ ] plus\n1. [ ] ordered dot\n2) [x] ordered paren\n123456789. [ ] nine digits\n1234567890. [ ] ten digits\n",
+	"marker variants":
+		"- [~] tilde\n- [-] dash\n- [ x ] padded\n- [X] upper\n- [?] question\n- [1] digit\n- [xx] two chars\n- [WIP] word\n- [x]glued\n",
+	"link bullets are not tasks":
+		"- [A](https://example.com)\n- [1](./one)\n- [a][ref]\n- [Some doc](./doc.md)\n- [ ](https://example.com)\n- [ ][ref]\n- [ ] Real task\n",
+	"fences and comments still count":
+		"```md\n- [ ] in a fence\n```\n<!-- - [ ] in a comment -->\n- [ ] after\n    - [ ] indented code-like\n",
 	"not list items": "[ ] bare\n-[ ] no space\n- text [ ] later\n> - [ ] quote\n",
 	"empty file": "",
 	"headings only": "# Tasks\n\n## 1. Nothing\n",
@@ -61,7 +68,7 @@ describe.skipIf(!HAS_CLI)("scanner parity with the installed OpenSpec CLI", () =
 	it("matches on seeded random files", () => {
 		let seed = 20260930;
 		const next = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32;
-		const pick = <T,>(items: T[]) => items[Math.floor(next() * items.length)];
+		const pick = <T>(items: T[]) => items[Math.floor(next() * items.length)];
 		const markers = ["-", "*", "+", "1.", "12)", "  -", "\t-", "    *", ""];
 		const boxes = ["[ ]", "[x]", "[X]", "[]", "[~]", "[ x ]", "[-]", "[A]", "[xx]", "[ ](u)", "[a][r]"];
 		const texts = ["", " ", " task", "  spaced  ", " dup", " dup", " 1.1 labelled", " done", "\t", " é"];
@@ -81,7 +88,9 @@ describe("scanner details the CLI does not expose", () => {
 	it("reports box positions and marker text for every checkbox line", () => {
 		const content = "# T\n- [ ] A\n  * [x] B\n- [~] C\n- [ ]\n";
 		const scanned = scanTasks(content);
-		expect(scanned.map((t) => ({ line: t.line, marker: t.marker, text: content.slice(t.boxStart, t.boxEnd + 1) }))).toEqual([
+		expect(
+			scanned.map((t) => ({ line: t.line, marker: t.marker, text: content.slice(t.boxStart, t.boxEnd + 1) })),
+		).toEqual([
 			{ line: 1, marker: "", text: "[ ]" },
 			{ line: 2, marker: "x", text: "[x]" },
 			{ line: 3, marker: "~", text: "[~]" },
@@ -95,7 +104,11 @@ describe("scanner details the CLI does not expose", () => {
 	});
 
 	it("extracts a leading dotted label", () => {
-		const listed = listTasks(scanTasks("- [ ] 3.4 Implement it\n- [ ] 12 Twelve\n- [ ] No label\n- [ ] 1.2.3.4 Deep\n- [ ] v2 not a label\n- [ ] 7up is a drink\n- [ ] 3.4: colon\n"));
+		const listed = listTasks(
+			scanTasks(
+				"- [ ] 3.4 Implement it\n- [ ] 12 Twelve\n- [ ] No label\n- [ ] 1.2.3.4 Deep\n- [ ] v2 not a label\n- [ ] 7up is a drink\n- [ ] 3.4: colon\n",
+			),
+		);
 		expect(listed.map((t) => t.label)).toEqual(["3.4", "12", undefined, "1.2.3.4", undefined, undefined, undefined]);
 	});
 

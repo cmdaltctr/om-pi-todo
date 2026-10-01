@@ -30,7 +30,9 @@ async function run(answers: Parameters<typeof scriptedUi>[0], discover?: ChangeD
 	await refreshPreferences();
 	const { host, entries } = setup(discover);
 	const script = scriptedUi(answers);
-	await host.commands.get("todo-settings").handler("", createCtx(sessionId, [], { hasUI: true, cwd: "/work/cwd", ui: script.ui }));
+	await host.commands
+		.get("todo-settings")
+		.handler("", createCtx(sessionId, [], { hasUI: true, cwd: "/work/cwd", ui: script.ui }));
 	return { ...script, entries };
 }
 
@@ -51,13 +53,19 @@ describe("/todo-settings menu", () => {
 
 	it("shows the current values and closes on Done", async () => {
 		const result = await run({ select: ["Done"] });
-		expect(result.calls[0]).toMatchObject({ method: "select", args: [MENU, [
-			"Session mode: Normal",
-			"Default mode for new sessions: Normal",
-			"Panel line budget: 12",
-			"Collapse key: ctrl+shift+t",
-			"Done",
-		]] });
+		expect(result.calls[0]).toMatchObject({
+			method: "select",
+			args: [
+				MENU,
+				[
+					"Session mode: Normal",
+					"Default mode for new sessions: Normal",
+					"Panel line budget: 12",
+					"Collapse key: ctrl+shift+t",
+					"Done",
+				],
+			],
+		});
 		expect(result.entries).toEqual([]);
 	});
 
@@ -70,9 +78,14 @@ describe("/todo-settings menu", () => {
 
 describe("choosing OpenSpec sync for this session", () => {
 	it("binds only after the user picks a change and confirms the root", async () => {
-		const result = await run({ select: ["Session mode: Normal", "OpenSpec sync", "add-thing", "Done"], confirm: [true] });
+		const result = await run({
+			select: ["Session mode: Normal", "OpenSpec sync", "add-thing", "Done"],
+			confirm: [true],
+		});
 		expect(getSessionMode("s1")).toEqual({ mode: "openspec", binding: { root: ROOT, change: "add-thing" } });
-		expect(result.entries).toEqual([[SESSION_ENTRY_TYPE, { mode: "openspec", binding: { root: ROOT, change: "add-thing" } }]]);
+		expect(result.entries).toEqual([
+			[SESSION_ENTRY_TYPE, { mode: "openspec", binding: { root: ROOT, change: "add-thing" } }],
+		]);
 		const picker = result.calls.find((c) => String(c.args[0]).startsWith("Choose an OpenSpec change"));
 		expect(picker?.args[0]).toContain(ROOT);
 		const confirm = result.calls.find((c) => c.method === "confirm");
@@ -102,7 +115,10 @@ describe("choosing OpenSpec sync for this session", () => {
 	});
 
 	it("leaves everything alone when the root confirmation is declined", async () => {
-		const result = await run({ select: ["Session mode: Normal", "OpenSpec sync", "add-thing", "Done"], confirm: [false] });
+		const result = await run({
+			select: ["Session mode: Normal", "OpenSpec sync", "add-thing", "Done"],
+			confirm: [false],
+		});
 		expect(getSessionMode("s1")).toEqual({ mode: "normal" });
 		expect(result.entries).toEqual([]);
 	});
@@ -118,7 +134,12 @@ describe("choosing OpenSpec sync for this session", () => {
 
 	it("explains an unsupported change and does not bind it", async () => {
 		const result = await run({
-			select: ["Session mode: Normal", "OpenSpec sync", "custom-flow (unsupported: schema 'custom' is not supported)", "Done"],
+			select: [
+				"Session mode: Normal",
+				"OpenSpec sync",
+				"custom-flow (unsupported: schema 'custom' is not supported)",
+				"Done",
+			],
 		});
 		expect(getSessionMode("s1")).toEqual({ mode: "normal" });
 		expect(result.notes.map((n) => n.message).join("\n")).toContain("schema 'custom' is not supported");
@@ -126,7 +147,10 @@ describe("choosing OpenSpec sync for this session", () => {
 	});
 
 	it("reports a discovery failure and stays in the current mode", async () => {
-		const result = await run({ select: ["Session mode: Normal", "OpenSpec sync", "Done"] }, async () => ({ ok: false, error: "openspec not found" }));
+		const result = await run({ select: ["Session mode: Normal", "OpenSpec sync", "Done"] }, async () => ({
+			ok: false,
+			error: "openspec not found",
+		}));
 		expect(getSessionMode("s1")).toEqual({ mode: "normal" });
 		expect(result.notes).toEqual([{ message: "OpenSpec sync unavailable: openspec not found", type: "error" }]);
 	});
@@ -181,7 +205,10 @@ describe("display preferences", () => {
 		for (const bad of ["2", "abc", "", "1e999", "12.5x"]) {
 			const result = await run({ select: ["Panel line budget: 12", "Done"], input: [bad] });
 			expect(getPreferences().maxWidgetLines).toBe(12);
-			expect(result.notes[0]).toEqual({ message: "Panel line budget must be a whole number of at least 3", type: "error" });
+			expect(result.notes[0]).toEqual({
+				message: "Panel line budget must be a whole number of at least 3",
+				type: "error",
+			});
 		}
 	});
 
@@ -202,7 +229,10 @@ describe("display preferences", () => {
 		expect(getPreferences().collapseKey).toBe("off");
 		const result = await run({ select: ["Collapse key: off", "Done"], input: ["ctr+]"] });
 		expect(getPreferences().collapseKey).toBe("off");
-		expect(result.notes[0]).toEqual({ message: "Invalid collapse key. Use modifier+key such as ctrl+shift+t, or off.", type: "error" });
+		expect(result.notes[0]).toEqual({
+			message: "Invalid collapse key. Use modifier+key such as ctrl+shift+t, or off.",
+			type: "error",
+		});
 	});
 
 	it("reports a failed save and keeps the cache", async () => {
@@ -230,24 +260,41 @@ describe("mode change hook", () => {
 			},
 		});
 		const script = scriptedUi(answers);
-		await host.commands.get("todo-settings").handler("", createCtx("s1", [], { hasUI: true, cwd: "/work/cwd", ui: script.ui }));
+		await host.commands
+			.get("todo-settings")
+			.handler("", createCtx("s1", [], { hasUI: true, cwd: "/work/cwd", ui: script.ui }));
 		return seen;
 	}
 
 	it("runs after a session is bound, seeing the new mode already in place", async () => {
-		expect(await withHook({ select: ["Session mode: Normal", "OpenSpec sync", "add-thing", "Done"], confirm: [true] })).toEqual([{ mode: "openspec" }]);
+		expect(
+			await withHook({ select: ["Session mode: Normal", "OpenSpec sync", "add-thing", "Done"], confirm: [true] }),
+		).toEqual([{ mode: "openspec" }]);
 	});
 
 	it("runs after a return to normal mode", async () => {
 		setSessionMode("s1", { mode: "openspec", binding: { root: ROOT, change: "add-thing" } });
-		expect(await withHook({ select: ["Session mode: OpenSpec sync: add-thing (/work/project)", "Normal", "Done"] })).toEqual([{ mode: "normal" }]);
+		expect(
+			await withHook({ select: ["Session mode: OpenSpec sync: add-thing (/work/project)", "Normal", "Done"] }),
+		).toEqual([{ mode: "normal" }]);
 	});
 
 	it("does not run when the user cancels, declines, or picks an unsupported change", async () => {
 		expect(await withHook({ select: ["Session mode: Normal", undefined, "Done"] })).toEqual([]);
 		expect(await withHook({ select: ["Session mode: Normal", "OpenSpec sync", undefined, "Done"] })).toEqual([]);
-		expect(await withHook({ select: ["Session mode: Normal", "OpenSpec sync", "add-thing", "Done"], confirm: [false] })).toEqual([]);
-		expect(await withHook({ select: ["Session mode: Normal", "OpenSpec sync", "custom-flow (unsupported: schema 'custom' is not supported)", "Done"] })).toEqual([]);
+		expect(
+			await withHook({ select: ["Session mode: Normal", "OpenSpec sync", "add-thing", "Done"], confirm: [false] }),
+		).toEqual([]);
+		expect(
+			await withHook({
+				select: [
+					"Session mode: Normal",
+					"OpenSpec sync",
+					"custom-flow (unsupported: schema 'custom' is not supported)",
+					"Done",
+				],
+			}),
+		).toEqual([]);
 	});
 
 	it("does not run for default-mode or display changes", async () => {

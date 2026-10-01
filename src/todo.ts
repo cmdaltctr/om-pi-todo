@@ -115,7 +115,7 @@ export function registerTodoTool(pi: ExtensionAPI, runtime?: Runtime, hooks?: To
 		name: TOOL_NAME,
 		label: TOOL_LABEL,
 		description:
-			"Manage a task list for tracking multi-step progress. Actions: create (new task), update (change status/fields/dependencies), list (all tasks, optionally filtered by status), get (single task details), delete (tombstone), clear (reset all). Status: pending → in_progress → completed, plus deleted tombstone. Use this to plan and track multi-step work like research, design, and implementation. In OpenSpec sync mode the list holds tasks imported from tasks.md; pass scope \"incidental\" to address your own temporary tasks instead.",
+			'Manage a task list for tracking multi-step progress. Actions: create (new task), update (change status/fields/dependencies), list (all tasks, optionally filtered by status), get (single task details), delete (tombstone), clear (reset all). Status: pending → in_progress → completed, plus deleted tombstone. Use this to plan and track multi-step work like research, design, and implementation. In OpenSpec sync mode the list holds tasks imported from tasks.md; pass scope "incidental" to address your own temporary tasks instead.',
 		promptSnippet: guidance.promptSnippet ?? DEFAULT_PROMPT_SNIPPET,
 		promptGuidelines: guidance.promptGuidelines ?? DEFAULT_PROMPT_GUIDELINES,
 		parameters: TodoParamsSchema,
@@ -124,7 +124,8 @@ export function registerTodoTool(pi: ExtensionAPI, runtime?: Runtime, hooks?: To
 			if (runtime && getSessionMode(sid(ctx)).mode === "openspec") {
 				const reply = await executeSyncTodo(runtime, sid(ctx), params.action, params as TaskMutationParams, signal);
 				// A linked completion repaints inside the writer, which reports its own repaint problems.
-				const writerRepaints = params.action === "update" && params.status === "completed" && params.scope !== "incidental";
+				const writerRepaints =
+					params.action === "update" && params.status === "completed" && params.scope !== "incidental";
 				if (!MUTATIONS.has(params.action) || reply.details.error || writerRepaints) return reply;
 				return withWarning(reply, await afterCommit(hooks, sid(ctx)));
 			}
@@ -162,11 +163,17 @@ export interface PanelControl {
 	/** The message of the last repaint failure that has not been recovered from. */
 	lastFailure(): string | undefined;
 	/** Register the panel again on this session's live UI and draw committed state. Throws on failure. */
-	rebuild(ctx: Parameters<Parameters<ExtensionAPI["registerCommand"]>[1]["handler"]>[1]): Promise<"rebuilt" | "background">;
+	rebuild(
+		ctx: Parameters<Parameters<ExtensionAPI["registerCommand"]>[1]["handler"]>[1],
+	): Promise<"rebuilt" | "background">;
 }
 
 /** `/todos refresh`: read-only. Re-reads OpenSpec when synced, then redraws what is committed. Never writes. */
-async function refreshPanel(ctx: Parameters<Parameters<ExtensionAPI["registerCommand"]>[1]["handler"]>[1], runtime: Runtime | undefined, panel: PanelControl | undefined): Promise<void> {
+async function refreshPanel(
+	ctx: Parameters<Parameters<ExtensionAPI["registerCommand"]>[1]["handler"]>[1],
+	runtime: Runtime | undefined,
+	panel: PanelControl | undefined,
+): Promise<void> {
 	const earlier = panel?.lastFailure();
 	if (panel) {
 		try {
@@ -175,13 +182,19 @@ async function refreshPanel(ctx: Parameters<Parameters<ExtensionAPI["registerCom
 				return;
 			}
 		} catch (error) {
-			ctx.ui.notify(`Todo panel refresh failed: ${error instanceof Error ? error.message : String(error)}. Your tasks are unchanged. Run /todos refresh to retry.`, "error");
+			ctx.ui.notify(
+				`Todo panel refresh failed: ${error instanceof Error ? error.message : String(error)}. Your tasks are unchanged. Run /todos refresh to retry.`,
+				"error",
+			);
 			return;
 		}
 	}
 	// The data read comes after the redraw, so what is drawn last is the freshest committed view.
 	if (runtime && getSessionMode(sid(ctx)).mode === "openspec") await runtime.refresh(sid(ctx));
-	ctx.ui.notify(earlier ? `Todo panel recovered. The earlier problem was: ${earlier}` : "Todo panel refreshed.", "info");
+	ctx.ui.notify(
+		earlier ? `Todo panel recovered. The earlier problem was: ${earlier}` : "Todo panel refreshed.",
+		"info",
+	);
 }
 
 export function registerTodosCommand(pi: ExtensionAPI, runtime?: Runtime, panel?: PanelControl): void {

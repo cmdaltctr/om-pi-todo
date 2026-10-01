@@ -8,7 +8,13 @@ const ROOT = process.env.PI_TODO_ROOT ?? resolve(dirname(fileURLToPath(import.me
 
 const HOST_PACKAGES = ["@earendil-works/pi-ai", "@earendil-works/pi-coding-agent", "@earendil-works/pi-tui", "typebox"];
 const FORBIDDEN_SPECIFIER = /rpiv|juicesharp|node_modules|agent\/npm/;
-const DEP_FIELDS = ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies", "bundledDependencies"];
+const DEP_FIELDS = [
+	"dependencies",
+	"devDependencies",
+	"peerDependencies",
+	"optionalDependencies",
+	"bundledDependencies",
+];
 
 function sourceFiles(dir: string): string[] {
 	return readdirSync(dir).flatMap((name) => {
@@ -21,7 +27,8 @@ function sourceFiles(dir: string): string[] {
 /** Every module specifier: static, re-export, dynamic, and `require` forms. */
 function specifiers(source: string): string[] {
 	const found: string[] = [];
-	for (const m of source.matchAll(/(?:\bfrom|\bimport\s*\(|\brequire\s*\(|\bimport)\s*["']([^"']+)["']/g)) found.push(m[1]);
+	for (const m of source.matchAll(/(?:\bfrom|\bimport\s*\(|\brequire\s*\(|\bimport)\s*["']([^"']+)["']/g))
+		found.push(m[1]);
 	return found;
 }
 

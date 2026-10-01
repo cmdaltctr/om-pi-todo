@@ -39,7 +39,11 @@ export function projectPanelState(snapshot: Snapshot): TaskState {
 	const linked = snapshot.linked.map(linkedToTask);
 	const incidental = snapshot.ordinary
 		.filter((t) => t.status !== "deleted")
-		.map((t) => ({ ...t, id: t.id + INCIDENTAL_ID_OFFSET, blockedBy: t.blockedBy?.map((d) => d + INCIDENTAL_ID_OFFSET) }));
+		.map((t) => ({
+			...t,
+			id: t.id + INCIDENTAL_ID_OFFSET,
+			blockedBy: t.blockedBy?.map((d) => d + INCIDENTAL_ID_OFFSET),
+		}));
 	const tasks = [...linked, ...incidental].map((t) => (t.blockedBy ? t : { ...t, blockedBy: undefined })) as Task[];
 	for (const t of tasks) if (t.blockedBy === undefined) delete t.blockedBy;
 	// The overlay resets its display memory when this number falls, as it does after a `clear`.
@@ -60,7 +64,10 @@ function linkedLine(row: LinkedRow): string {
 }
 
 function incidentalLine(task: Task): string {
-	const reason = typeof task.metadata?.reason === "string" ? ` (incidental: ${sanitizeTerminalText(task.metadata.reason)})` : " (incidental)";
+	const reason =
+		typeof task.metadata?.reason === "string"
+			? ` (incidental: ${sanitizeTerminalText(task.metadata.reason)})`
+			: " (incidental)";
 	return taskLine(task, reason);
 }
 
@@ -73,7 +80,8 @@ export interface DescribeOptions {
 
 /** The whole view as lines. Identical input gives identical output for every reader. */
 export function describeSnapshot(snapshot: Snapshot, options: DescribeOptions = {}): string[] {
-	const keep = (t: Task) => (options.includeDeleted || t.status !== "deleted") && (!options.status || t.status === options.status);
+	const keep = (t: Task) =>
+		(options.includeDeleted || t.status !== "deleted") && (!options.status || t.status === options.status);
 	const lines: string[] = [];
 
 	if (snapshot.mode !== "openspec") {
@@ -83,16 +91,22 @@ export function describeSnapshot(snapshot: Snapshot, options: DescribeOptions = 
 	} else {
 		const rev = snapshot.revision ? ` · revision ${snapshot.revision}` : "";
 		const pending = snapshot.refreshing ? " · refreshing, showing the last committed view" : "";
-		lines.push(`OpenSpec sync: ${snapshot.binding.change} (${snapshot.binding.root}) · ${snapshot.freshness}${rev}${pending}`);
+		lines.push(
+			`OpenSpec sync: ${snapshot.binding.change} (${snapshot.binding.root}) · ${snapshot.freshness}${rev}${pending}`,
+		);
 		if (snapshot.freshness === "stale" || snapshot.freshness === "unavailable") {
 			lines.push(`⚠ The OpenSpec view is ${snapshot.freshness}, so linked changes are disabled. Run /todos refresh.`);
 		}
 		if (snapshot.planning) {
-			lines.push(`Planning artefacts: ${snapshot.planning.isComplete ? "complete" : "incomplete"} (readiness only, not implementation progress).`);
+			lines.push(
+				`Planning artefacts: ${snapshot.planning.isComplete ? "complete" : "incomplete"} (readiness only, not implementation progress).`,
+			);
 		}
 		if (snapshot.implementation) {
 			const i = snapshot.implementation;
-			lines.push(`OpenSpec tasks: ${i.complete}/${i.total} checked, ${i.remaining} remaining. A checked box records task progress; it does not show that tests passed or that the work was verified.`);
+			lines.push(
+				`OpenSpec tasks: ${i.complete}/${i.total} checked, ${i.remaining} remaining. A checked box records task progress; it does not show that tests passed or that the work was verified.`,
+			);
 		}
 		for (const d of snapshot.diagnostics) lines.push(`Note: ${sanitizeTerminalText(d)}`);
 		if (options.forTool) for (const n of snapshot.notes) lines.push(`OpenSpec note: ${sanitizeTerminalText(n)}`);
@@ -108,7 +122,11 @@ export function describeSnapshot(snapshot: Snapshot, options: DescribeOptions = 
 
 	const ordinary = snapshot.ordinary.filter(keep);
 	if (snapshot.mode === "openspec") {
-		lines.push(ordinary.length ? `Incidental tasks (scope "incidental"; not counted in OpenSpec progress):` : "Incidental tasks: none.");
+		lines.push(
+			ordinary.length
+				? `Incidental tasks (scope "incidental"; not counted in OpenSpec progress):`
+				: "Incidental tasks: none.",
+		);
 		for (const t of ordinary) lines.push(incidentalLine(t));
 	} else {
 		for (const t of ordinary) lines.push(taskLine(t));
@@ -121,7 +139,10 @@ export function describeSnapshot(snapshot: Snapshot, options: DescribeOptions = 
 export function describeLinked(row: LinkedRow, snapshot: Snapshot): string[] {
 	const task = linkedToTask(row);
 	const blocks = deriveBlocks(snapshot.linked.map(linkedToTask)).get(row.id) ?? [];
-	const lines = [`#${row.id} [${task.status}] ${sanitizeTerminalText(row.description)}`, `  source: tasks.md${row.label ? ` task ${row.label}` : ""} (revision ${snapshot.revision ?? "unknown"})`];
+	const lines = [
+		`#${row.id} [${task.status}] ${sanitizeTerminalText(row.description)}`,
+		`  source: tasks.md${row.label ? ` task ${row.label}` : ""} (revision ${snapshot.revision ?? "unknown"})`,
+	];
 	if (task.activeForm) lines.push(`  activeForm: ${sanitizeTerminalText(task.activeForm)}`);
 	if (task.blockedBy?.length) lines.push(`  blockedBy: ${task.blockedBy.map((id) => `#${id}`).join(", ")}`);
 	if (blocks.length) lines.push(`  blocks: ${blocks.map((id) => `#${id}`).join(", ")}`);
@@ -145,7 +166,12 @@ export function projectPanelModel(snapshot: Snapshot): PanelModel {
 	return {
 		state,
 		sections: {
-			openspec: { complete: i?.complete ?? linked.filter((r) => r.done).length, total: i?.total ?? linked.length, freshness: snapshot.freshness, refreshing: snapshot.refreshing },
+			openspec: {
+				complete: i?.complete ?? linked.filter((r) => r.done).length,
+				total: i?.total ?? linked.length,
+				freshness: snapshot.freshness,
+				refreshing: snapshot.refreshing,
+			},
 			incidental: { complete: incidental.filter((t) => t.status === "completed").length, total: incidental.length },
 		},
 	};

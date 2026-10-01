@@ -29,7 +29,10 @@ function statusJson(over: Record<string, unknown> = {}) {
 		schemaName: "spec-driven",
 		changeRoot: join(root, "openspec", "changes", "a"),
 		isPlanningComplete: true,
-		artifacts: [{ id: "proposal", status: "done" }, { id: "tasks", status: "done" }],
+		artifacts: [
+			{ id: "proposal", status: "done" },
+			{ id: "tasks", status: "done" },
+		],
 		artifactPaths: { tasks: { existingOutputPaths: [tasksPath] } },
 		root: { path: root, source: "nearest" },
 		...over,
@@ -59,7 +62,12 @@ interface Harness {
 	apply: (args: readonly string[]) => ExecResult | Promise<ExecResult>;
 }
 
-function setup(ordinary: Task[] = [], mode: (sessionId: string) => SessionMode = bound, readFileImpl = readFile as any, realpathImpl?: (p: string) => Promise<string>) {
+function setup(
+	ordinary: Task[] = [],
+	mode: (sessionId: string) => SessionMode = bound,
+	readFileImpl = readFile as any,
+	realpathImpl?: (p: string) => Promise<string>,
+) {
 	const h: Harness = {
 		calls: [],
 		status: () => ok(statusJson()),
@@ -67,9 +75,16 @@ function setup(ordinary: Task[] = [], mode: (sessionId: string) => SessionMode =
 	};
 	const run = async (args: readonly string[], options: { cwd: string; signal?: AbortSignal }) => {
 		h.calls.push({ args, cwd: options.cwd, signal: options.signal });
-		return args[0] === "status" ? h.status(args) : args[0] === "instructions" ? h.apply(args) : fail("exit", `unexpected ${args[0]}`);
+		return args[0] === "status"
+			? h.status(args)
+			: args[0] === "instructions"
+				? h.apply(args)
+				: fail("exit", `unexpected ${args[0]}`);
 	};
-	const provider = createSnapshotProvider({ run: run as any, readFile: readFileImpl, ...(realpathImpl ? { realpath: realpathImpl } : {}) }, { getMode: (id) => mode(id), getOrdinary: () => ordinary });
+	const provider = createSnapshotProvider(
+		{ run: run as any, readFile: readFileImpl, ...(realpathImpl ? { realpath: realpathImpl } : {}) },
+		{ getMode: (id) => mode(id), getOrdinary: () => ordinary },
+	);
 	return { h, provider, ordinary };
 }
 
@@ -81,7 +96,10 @@ describe("a fresh snapshot", () => {
 		const { h, provider } = setup();
 		const controller = new AbortController();
 		await provider.refresh("s1", { signal: controller.signal });
-		expect(h.calls.map((c) => c.args)).toEqual([["status", "--change", "a", "--json"], ["instructions", "apply", "--change", "a", "--json"]]);
+		expect(h.calls.map((c) => c.args)).toEqual([
+			["status", "--change", "a", "--json"],
+			["instructions", "apply", "--change", "a", "--json"],
+		]);
 		expect(h.calls.every((c) => c.cwd === root && c.signal === controller.signal)).toBe(true);
 	});
 
@@ -89,8 +107,20 @@ describe("a fresh snapshot", () => {
 		writeFileSync(tasksPath, md("- [x] 1.1 Done", "- [ ] 1.2 Open"));
 		const { provider } = setup();
 		const snap = await provider.refresh("s1");
-		expect(snap).toMatchObject({ mode: "openspec", binding: { root, change: "a" }, freshness: "fresh", writable: true, needsReselect: false, file: tasksPath, schema: "spec-driven", diagnostics: [] });
-		expect(snap.linked.map((r) => [r.id, r.description, r.done])).toEqual([[1, "1.1 Done", true], [2, "1.2 Open", false]]);
+		expect(snap).toMatchObject({
+			mode: "openspec",
+			binding: { root, change: "a" },
+			freshness: "fresh",
+			writable: true,
+			needsReselect: false,
+			file: tasksPath,
+			schema: "spec-driven",
+			diagnostics: [],
+		});
+		expect(snap.linked.map((r) => [r.id, r.description, r.done])).toEqual([
+			[1, "1.1 Done", true],
+			[2, "1.2 Open", false],
+		]);
 		expect(snap.revision).toMatch(/^[0-9a-f]{16}$/);
 		expect(provider.getSnapshot("s1")).toEqual(snap);
 	});
@@ -100,7 +130,13 @@ describe("a fresh snapshot", () => {
 		const ordinary = [task(1, "completed"), task(2, "in_progress"), task(3, "pending"), task(4, "pending")];
 		const { provider } = setup(ordinary);
 		const first = await provider.refresh("s1");
-		expect(first.planning).toEqual({ isComplete: true, artifacts: [{ id: "proposal", status: "done" }, { id: "tasks", status: "done" }] });
+		expect(first.planning).toEqual({
+			isComplete: true,
+			artifacts: [
+				{ id: "proposal", status: "done" },
+				{ id: "tasks", status: "done" },
+			],
+		});
 		expect(first.implementation).toMatchObject({ state: "ready", total: 3, complete: 1, remaining: 2 });
 		expect(first.ordinaryCounts).toEqual({ total: 4, pending: 2, inProgress: 1, completed: 1 });
 		expect(first.ordinary).toEqual(ordinary);
@@ -141,7 +177,14 @@ describe("a fresh snapshot", () => {
 	it("surfaces CLI instruction, context and guidance as bounded notes", async () => {
 		writeFileSync(tasksPath, md("- [ ] A"));
 		const { h, provider } = setup();
-		h.apply = async () => ok(await applyJson({ context: "Use British English.", operationGuidance: ["Run tests first"], instruction: "x".repeat(10_000) }));
+		h.apply = async () =>
+			ok(
+				await applyJson({
+					context: "Use British English.",
+					operationGuidance: ["Run tests first"],
+					instruction: "x".repeat(10_000),
+				}),
+			);
 		const snap = await provider.refresh("s1");
 		expect(snap.notes.join("\n")).toContain("Use British English.");
 		expect(snap.notes.join("\n")).toContain("Run tests first");
@@ -196,7 +239,24 @@ describe("failures keep the last good view visibly stale", () => {
 
 	it("treats malformed CLI output as a failure", async () => {
 		writeFileSync(tasksPath, md("- [ ] A"));
-		for (const [which, bad] of [["status", null], ["status", { schemaName: 5 }], ["apply", null], ["apply", { tasks: "x" }], ["apply", { state: "ready", progress: { total: 1, complete: 0, remaining: 1 }, tasks: [{ id: "1", description: "x", done: "yes" }] }], ["apply", { state: "ready", progress: { total: 1, complete: 0, remaining: 1 }, tasks: [{}] }], ["apply", { state: "ready", progress: { total: 1, complete: 0, remaining: 1 }, tasks: [5] }], ["apply", { state: "ready", progress: { total: "1", complete: 0, remaining: 1 }, tasks: [] }], ["apply", { state: "weird", progress: { total: 0, complete: 0, remaining: 0 }, tasks: [] }]] as const) {
+		for (const [which, bad] of [
+			["status", null],
+			["status", { schemaName: 5 }],
+			["apply", null],
+			["apply", { tasks: "x" }],
+			[
+				"apply",
+				{
+					state: "ready",
+					progress: { total: 1, complete: 0, remaining: 1 },
+					tasks: [{ id: "1", description: "x", done: "yes" }],
+				},
+			],
+			["apply", { state: "ready", progress: { total: 1, complete: 0, remaining: 1 }, tasks: [{}] }],
+			["apply", { state: "ready", progress: { total: 1, complete: 0, remaining: 1 }, tasks: [5] }],
+			["apply", { state: "ready", progress: { total: "1", complete: 0, remaining: 1 }, tasks: [] }],
+			["apply", { state: "weird", progress: { total: 0, complete: 0, remaining: 0 }, tasks: [] }],
+		] as const) {
 			const { h, provider } = setup();
 			h[which] = async () => ok(bad);
 			expect((await provider.refresh("s1")).freshness).toBe("unavailable");
@@ -313,7 +373,13 @@ describe("stable reads", () => {
 	it("disables writes when the CLI and the file disagree", async () => {
 		writeFileSync(tasksPath, md("- [ ] A", "- [ ] B"));
 		const { h, provider } = setup();
-		h.apply = async () => ok(await applyJson({ tasks: [{ id: "1", description: "A", done: false }], progress: { total: 1, complete: 0, remaining: 1 } }));
+		h.apply = async () =>
+			ok(
+				await applyJson({
+					tasks: [{ id: "1", description: "A", done: false }],
+					progress: { total: 1, complete: 0, remaining: 1 },
+				}),
+			);
 		const snap = await provider.refresh("s1");
 		expect(snap.writable).toBe(false);
 		expect(snap.diagnostics.join(" ")).toMatch(/does not match the CLI/);
@@ -355,7 +421,15 @@ describe("overlapping refreshes", () => {
 			first = false;
 			const body = await applyJson();
 			if (mine) await new Promise<void>((r) => release.push(r)); // hold the older refresh open
-			return ok(mine ? { ...body, tasks: [{ id: "1", description: "A", done: true }], progress: { total: 1, complete: 1, remaining: 0 } } : body);
+			return ok(
+				mine
+					? {
+							...body,
+							tasks: [{ id: "1", description: "A", done: true }],
+							progress: { total: 1, complete: 1, remaining: 0 },
+						}
+					: body,
+			);
 		};
 		const older = provider.refresh("s1");
 		await new Promise((r) => setTimeout(r, 20));
@@ -475,7 +549,11 @@ describe("write blocks", () => {
 
 describe("seeding from replay", () => {
 	const seedRows = () => [
-		{ id: 7, fingerprint: fingerprint("A"), activity: { status: "in_progress" as const, activeForm: "doing A", owner: "me" } },
+		{
+			id: 7,
+			fingerprint: fingerprint("A"),
+			activity: { status: "in_progress" as const, activeForm: "doing A", owner: "me" },
+		},
 		{ id: 9, fingerprint: fingerprint("B") },
 	];
 
@@ -525,7 +603,12 @@ describe("seeding from replay", () => {
 			nextId: 3,
 			rows: [
 				{ id: 1, fingerprint: fingerprint("1.1 A"), label: "1.1" },
-				{ id: 2, fingerprint: fingerprint("1.2 B"), label: "1.2", activity: { status: "in_progress", activeForm: "b" } },
+				{
+					id: 2,
+					fingerprint: fingerprint("1.2 B"),
+					label: "1.2",
+					activity: { status: "in_progress", activeForm: "b" },
+				},
 			],
 		});
 		expect(JSON.stringify(saved)).not.toMatch(/"description"|"done"/);
