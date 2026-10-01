@@ -14,12 +14,12 @@
  * last good rows stay visible as stale and read-only.
  */
 
-import { readFile as fsReadFile } from "node:fs/promises";
+import { readFile as fsReadFile, realpath as fsRealpath } from "node:fs/promises";
 import type { TodoMode } from "../preferences.js";
 import type { Binding, SessionMode } from "../session-mode.js";
 import { selectTodoCounts, type TodoCounts } from "../state/selectors.js";
 import type { Task } from "../tool/types.js";
-import { checkStatus, trackedTaskFile } from "./discover.js";
+import { checkStatus, isInside, trackedTaskFile } from "./discover.js";
 import { type ExecOptions, type ExecResult, runOpenspecJson } from "./exec.js";
 import { type Activity, type CliTasks, type LinkedRow, reconcile } from "./reconcile.js";
 import { revisionOf } from "./tasks.js";
@@ -59,6 +59,7 @@ export interface Snapshot {
 export interface SnapshotDeps {
 	run?: Run;
 	readFile?: (path: string) => Promise<Buffer>;
+	realpath?: (path: string) => Promise<string>;
 }
 
 export interface SnapshotSources {
@@ -152,6 +153,7 @@ function parseApply(json: unknown, bindingRoot: string): ApplyView | Failure {
 export function createSnapshotProvider(deps: SnapshotDeps, sources: SnapshotSources) {
 	const run: Run = deps.run ?? runOpenspecJson;
 	const readFile = deps.readFile ?? ((path: string) => fsReadFile(path));
+	const realpath = deps.realpath ?? ((path: string) => fsRealpath(path));
 	const slots = new Map<string, Slot>();
 
 	const slot = (sessionId: string): Slot => {
@@ -205,6 +207,16 @@ export function createSnapshotProvider(deps: SnapshotDeps, sources: SnapshotSour
 		if (!verdict.supported) return new Failure(`The bound change is not supported: ${verdict.reason}`, true);
 		const file = trackedTaskFile(sj)!;
 		const record = sj as Record<string, unknown>;
+
+		// Resolve links first: a task file or change directory that leads outside the planning root is never read.
+		try {
+			const [realFile, realDir, realRoot] = await Promise.all([realpath(file), realpath(String((sj as Record<string, unknown>).changeRoot)), realpath(binding.root)]);
+			if (!isInside(realRoot, realDir) || !isInside(realDir, realFile)) {
+				return new Failure("The task file resolves outside the confirmed change directory, so it is not read. Fix the link or choose another change with /todo-settings.", true);
+			}
+		} catch (error) {
+			return new Failure(`The task file path could not be resolved: ${(error as Error).message}`);
+		}
 
 		let before: Buffer;
 		try {

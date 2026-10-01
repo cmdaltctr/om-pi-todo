@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -59,7 +59,7 @@ interface Harness {
 	apply: (args: readonly string[]) => ExecResult | Promise<ExecResult>;
 }
 
-function setup(ordinary: Task[] = [], mode: (sessionId: string) => SessionMode = bound, readFileImpl = readFile as any) {
+function setup(ordinary: Task[] = [], mode: (sessionId: string) => SessionMode = bound, readFileImpl = readFile as any, realpathImpl?: (p: string) => Promise<string>) {
 	const h: Harness = {
 		calls: [],
 		status: () => ok(statusJson()),
@@ -69,7 +69,7 @@ function setup(ordinary: Task[] = [], mode: (sessionId: string) => SessionMode =
 		h.calls.push({ args, cwd: options.cwd, signal: options.signal });
 		return args[0] === "status" ? h.status(args) : args[0] === "instructions" ? h.apply(args) : fail("exit", `unexpected ${args[0]}`);
 	};
-	const provider = createSnapshotProvider({ run: run as any, readFile: readFileImpl }, { getMode: (id) => mode(id), getOrdinary: () => ordinary });
+	const provider = createSnapshotProvider({ run: run as any, readFile: readFileImpl, ...(realpathImpl ? { realpath: realpathImpl } : {}) }, { getMode: (id) => mode(id), getOrdinary: () => ordinary });
 	return { h, provider, ordinary };
 }
 
@@ -373,6 +373,53 @@ describe("overlapping refreshes", () => {
 		expect(a.freshness).toBe("fresh");
 		expect(b.freshness).toBe("fresh");
 		expect(provider.getSnapshot("s1").linked).toHaveLength(1);
+	});
+});
+
+describe("reads stay inside the confirmed scope", () => {
+	it("refuses a task file that is a link to a place outside the planning root, and shows none of its content", async () => {
+		const outside = mkdtempSync(join(tmpdir(), "pi-todo-outside-"));
+		try {
+			writeFileSync(join(outside, "secret.md"), md("- [ ] Secret outside wording"));
+			symlinkSync(join(outside, "secret.md"), tasksPath);
+			const { provider } = setup();
+			const snap = await provider.refresh("s1");
+			expect(snap).toMatchObject({ freshness: "unavailable", writable: false, needsReselect: true, linked: [] });
+			expect(snap.diagnostics.join(" ")).toMatch(/resolves outside/);
+			expect(JSON.stringify(snap)).not.toContain("Secret outside wording");
+		} finally {
+			rmSync(outside, { recursive: true, force: true });
+		}
+	});
+
+	it("refuses a change directory that is a link to a place outside the planning root", async () => {
+		const outside = mkdtempSync(join(tmpdir(), "pi-todo-outside-"));
+		try {
+			writeFileSync(join(outside, "tasks.md"), md("- [ ] Elsewhere"));
+			rmSync(join(root, "openspec", "changes", "a"), { recursive: true });
+			symlinkSync(outside, join(root, "openspec", "changes", "a"));
+			const { provider } = setup();
+			expect(await provider.refresh("s1")).toMatchObject({ freshness: "unavailable", needsReselect: true, linked: [] });
+		} finally {
+			rmSync(outside, { recursive: true, force: true });
+		}
+	});
+
+	it("accepts a link that stays inside the change directory", async () => {
+		writeFileSync(join(root, "openspec", "changes", "a", "real.md"), md("- [ ] Inside"));
+		symlinkSync(join(root, "openspec", "changes", "a", "real.md"), tasksPath);
+		const { provider } = setup();
+		expect((await provider.refresh("s1")).linked.map((r) => r.description)).toEqual(["Inside"]);
+	});
+
+	it("reports a path that cannot be resolved", async () => {
+		writeFileSync(tasksPath, md("- [ ] A"));
+		const { provider } = setup([], bound, undefined, async () => {
+			throw new Error("EIO: resolve failed");
+		});
+		const snap = await provider.refresh("s1");
+		expect(snap).toMatchObject({ freshness: "unavailable", linked: [] });
+		expect(snap.diagnostics.join(" ")).toContain("could not be resolved");
 	});
 });
 

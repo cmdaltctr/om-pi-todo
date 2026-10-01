@@ -7,7 +7,7 @@ Environment: Pi 0.99.1, OpenSpec CLI 1.13.1, Node 26.9, Vitest 5.0.3, TypeScript
 
 | Purpose | Command | Result |
 | --- | --- | --- |
-| Regression suite | `./node_modules/.bin/vitest run` | 29 files, 635 tests, all passing (about 23 s on an idle machine) |
+| Regression suite | `./node_modules/.bin/vitest run` | 29 files, 640 tests, all passing (about 23 s on an idle machine) |
 | Type check | `./node_modules/.bin/tsc -p .` (`strict`) | 0 errors |
 | Dependency audit | `bun audit` | No vulnerabilities in 223 packages |
 | Security scan | Aikido `aikido_scan_paths` over all 37 `src` files plus `package.json`, `tsconfig.json`, `vitest.config.ts` | See findings below |
@@ -26,7 +26,7 @@ The first scan reported 14 findings: 13 path-pattern findings and 1 timing-compa
 
 - **Writes to a task file** (`writer.ts`): the file and the change directory are resolved with `realpath`, and both must lie inside the confirmed planning root. A link that leaves the root is refused (`unsafe-path`). Tests cover a file link and a directory link that escape.
 - **Lock and staging files**: derived from the real path of the target, in the same directory. They are created with `wx`, which cannot follow a link.
-- **Reads of the task file** (`snapshot.ts`): the path comes from `openspec status`, and `checkStatus` requires it to be inside the change directory, which must be inside the planning root. A link inside that directory that points outside is not rejected on read. See residual risks.
+- **Reads of the task file** (`snapshot.ts`): the path comes from `openspec status`, and `checkStatus` requires it to be inside the change directory, which must be inside the planning root. Before the first read the snapshot provider also resolves the file, the change directory and the root with `realpath` and refuses any link that leads outside. This was added after the first version of this record, which listed it as a residual risk.
 - **Preferences** (`preferences.ts`): the path is built from `XDG_CONFIG_HOME` (absolute only) or the home directory. The user controls both. No tool or model input reaches it.
 - **Change names** that become CLI arguments must match `^[A-Za-z0-9][A-Za-z0-9._-]*$`. The CLI runs without a shell. A test passes hostile arguments such as `; touch PWNED` and confirms nothing runs.
 
@@ -71,7 +71,7 @@ Earlier stages used the same method. Every behaviour test was checked against a 
 
 1. **Editors that ignore locks.** A final read-to-rename race remains with a writer that does not use the lock. A revision check before the replace narrows it but cannot close it on a plain file system.
 2. **Stale lock files need manual removal.** The design forbids taking over a lock by age or apparent death. A crashed Pi leaves a lock that a person must delete.
-3. **Symlinked task file read.** A task file that is a link to a place outside the planning root can be read, because the CLI reads it. It is never written. Tasks.md content could then appear in `list`. This needs an author with write access to the change directory.
+3. **Symlink swap between check and read.** The link check and the read are separate calls. A link swapped in between them could still be read once. The CLI itself reads the same file in the same window, so this adds no new exposure. It needs an author with write access to the change directory. The writer re-checks again immediately before it replaces the file.
 4. **Checked box is not proof.** A checked box records progress. The tool output says so, but the extension cannot tell whether tests passed.
 5. **Duplicate-wording tasks are read-only.** By design, identical task wording cannot be mapped to one checkbox.
 6. **Timing-sensitive tests.** Real file-watcher tests depend on operating system event latency. They have long deadlines. They failed once under heavy machine load before the deadlines were raised.

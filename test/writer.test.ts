@@ -189,7 +189,8 @@ describe("unsafe paths", () => {
 		symlinkSync(outside, tasksPath);
 		const view = await t.read();
 		const outcome = await t.writer.complete("s1", 1, view.revision!);
-		expect(outcome).toMatchObject({ kind: "rejected", code: "unsafe-path" });
+		expect(view.freshness).toBe("unavailable"); // the read already refused the link
+		expect(outcome).toMatchObject({ kind: "rejected", code: "not-writable" });
 		expect(readFileSync(outside, "utf-8")).toBe(md("- [ ] A"));
 	});
 
@@ -201,10 +202,25 @@ describe("unsafe paths", () => {
 			symlinkSync(elsewhere, changeRoot);
 			const t = setup(md("- [ ] A"));
 			const view = await t.read();
-			expect(await t.writer.complete("s1", 1, view.revision!)).toMatchObject({ kind: "rejected", code: "unsafe-path" });
+			expect(view.freshness).toBe("unavailable");
+			expect(await t.writer.complete("s1", 1, view.revision!)).toMatchObject({ kind: "rejected", code: "not-writable" });
 			expect(readFileSync(join(elsewhere, "tasks.md"), "utf-8")).toBe(md("- [ ] A"));
 		} finally {
 			rmSync(elsewhere, { recursive: true, force: true });
+		}
+	});
+
+	it("the writer checks again itself: a link swapped in after the read is refused and nothing is written", async () => {
+		const outside = mkdtempSync(join(tmpdir(), "pi-todo-swap-"));
+		try {
+			const t = setup(md("- [ ] A"), bound, { realpath: async (p: string) => (p === tasksPath ? join(outside, "tasks.md") : (await import("node:fs/promises")).realpath(p)) });
+			const view = await t.read(); // the read sees a normal file
+			expect(view.freshness).toBe("fresh");
+			expect(await t.writer.complete("s1", 1, view.revision!)).toMatchObject({ kind: "rejected", code: "unsafe-path" });
+			expect(disk().toString()).toBe(md("- [ ] A"));
+			expect(readdirSync(outside)).toEqual([]);
+		} finally {
+			rmSync(outside, { recursive: true, force: true });
 		}
 	});
 
