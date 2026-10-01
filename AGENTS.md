@@ -54,6 +54,7 @@ bun run setup:host
 - Startup tests need `pi` on the PATH. They skip when it is missing.
 - Run `bun run ci` before you finish any change. It must pass.
 - Commit, then run `bun run ci:clean`. A passing `ci` can still fail in CI, because your folder differs from a clean clone.
+- `ci:clean` warns when your Node major differs from the one in `.github/workflows/ci.yml`. Treat that warning as a gap: CI has failed after a pass on a newer Node and npm.
 
 ## Testing
 

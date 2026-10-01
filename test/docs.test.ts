@@ -261,6 +261,17 @@ describe("the local gate, the hook and CI run the same steps", () => {
 		expect(read(".github/workflows/ci.yml")).toContain('HUSKY: "0"');
 	});
 
+	it("ci:clean warns when this machine's Node major differs from the one CI uses", () => {
+		const script = read("scripts/ci-clean.sh");
+		expect(script).toContain(".github/workflows/ci.yml");
+		expect(script).toContain("node-version");
+		expect(script).toMatch(/warning:.*Node/);
+		const ciNode = /node-version:\s*(\d+)/.exec(read(".github/workflows/ci.yml"))![1];
+		expect(Number(ciNode)).toBeGreaterThan(0);
+		// A warning, never a failure: it must not stop a push.
+		expect(script).not.toMatch(/warning:[^\n]*\n\s*exit/);
+	});
+
 	it("the workflow runs the same three steps and installs from the lockfile", () => {
 		const workflow = read(".github/workflows/ci.yml");
 		for (const step of [

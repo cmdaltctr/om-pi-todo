@@ -8,14 +8,41 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (file: string) => readFileSync(join(ROOT, file), "utf-8");
 const pkg = JSON.parse(read("package.json"));
 
+/**
+ * The JSON part of `npm pack --json` output. npm 10 runs the `prepare` script even with
+ * `--ignore-scripts`, and Husky then prints a line such as `HUSKY=0 skip install` ahead of the JSON.
+ */
+export function packJson(out: string): Array<{ files: Array<{ path: string }> }> {
+	const start = out.indexOf("[\n");
+	if (start === -1) throw new Error(`npm pack printed no JSON: ${out.slice(0, 200)}`);
+	return JSON.parse(out.slice(start));
+}
+
 /** What `npm publish` would upload, according to npm itself. */
 function packedFiles(): string[] {
 	const out = execFileSync("npm", ["pack", "--dry-run", "--json", "--ignore-scripts"], {
 		cwd: ROOT,
 		encoding: "utf-8",
 	});
-	return (JSON.parse(out)[0].files as Array<{ path: string }>).map((f) => f.path);
+	return packJson(out)[0].files.map((f) => f.path);
 }
+
+describe("reading npm pack output", () => {
+	const json = '[\n  {\n    "files": [{ "path": "src/a.ts" }]\n  }\n]\n';
+
+	it("reads clean output", () => {
+		expect(packJson(json)[0].files).toEqual([{ path: "src/a.ts" }]);
+	});
+
+	it("reads output with a script's message printed in front of it, with or without a newline", () => {
+		expect(packJson(`HUSKY=0 skip install${json}`)[0].files).toHaveLength(1);
+		expect(packJson(`> prepare\n> husky || true\n\nsome notice\n${json}`)[0].files).toHaveLength(1);
+	});
+
+	it("fails loudly, with the text it saw, when there is no JSON", () => {
+		expect(() => packJson("npm error something broke")).toThrow(/printed no JSON: npm error something broke/);
+	});
+});
 
 describe("the package is ready to publish", () => {
 	it("has a public name, a semantic version and is not private", () => {
