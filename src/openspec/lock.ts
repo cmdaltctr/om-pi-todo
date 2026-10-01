@@ -14,7 +14,7 @@
  * known limit.
  */
 
-import { randomBytes } from "node:crypto";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 import { mkdir, open, readFile, unlink } from "node:fs/promises";
 import { hostname } from "node:os";
 import { basename, dirname, join } from "node:path";
@@ -69,6 +69,14 @@ function parseOwner(text: string): LockOwner | undefined {
 	} catch {
 		return undefined;
 	}
+}
+
+/** Compare two tokens in constant time. Tokens of different length never match. */
+function sameToken(a: string | undefined, b: string): boolean {
+	if (a === undefined) return false;
+	const x = Buffer.from(a);
+	const y = Buffer.from(b);
+	return x.length === y.length && timingSafeEqual(x, y);
 }
 
 function ownerState(owner: LockOwner): OwnerState {
@@ -155,7 +163,7 @@ export async function acquireLock(target: string, options: LockOptions = {}): Pr
 						released = true;
 						try {
 							const current = parseOwner(await readFile(lockPath, "utf-8"));
-							if (current?.token !== token) return { released: false, reason: "not-owner" };
+							if (!sameToken(current?.token, token)) return { released: false, reason: "not-owner" };
 							await unlink(lockPath);
 							return { released: true };
 						} catch (error) {

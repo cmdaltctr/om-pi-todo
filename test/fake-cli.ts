@@ -6,7 +6,7 @@ type Hook = (args: readonly string[]) => ExecResult | Promise<ExecResult | undef
 
 /** JSON shapes of the real CLI, computed from the file on disk at call time. */
 export function makeFakeCli(o: { root: string; change: string; tasksPath: string; changeRoot: string; schema?: string }) {
-	const calls: Array<{ args: readonly string[]; cwd: string }> = [];
+	const calls: Array<{ args: readonly string[]; cwd: string; signal?: AbortSignal }> = [];
 	const hooks: { status?: Hook; apply?: Hook } = {};
 	const ok = (json: unknown): ExecResult => ({ ok: true, json, stderr: "" });
 
@@ -26,7 +26,7 @@ export function makeFakeCli(o: { root: string; change: string; tasksPath: string
 	}
 
 	const run = async (args: readonly string[], options: ExecOptions): Promise<ExecResult> => {
-		calls.push({ args, cwd: options.cwd });
+		calls.push({ args, cwd: options.cwd, signal: options.signal });
 		if (options.signal?.aborted) return { ok: false, kind: "cancelled", message: "OpenSpec command cancelled" }; // as the real runner does
 		if (args[0] === "status") {
 			const overridden = await hooks.status?.(args);

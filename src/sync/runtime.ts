@@ -113,6 +113,9 @@ export function createRuntime(deps: RuntimeDeps) {
 	/** Read the bound change, publish it if this caller is still current, then repaint. */
 	async function refresh(sessionId: string, options: { signal?: AbortSignal } = {}): Promise<Snapshot> {
 		const gen = capture(sessionId);
+		const mode = getSessionMode(sessionId);
+		// A read is about to start: show the marker over the last committed view, if there is one.
+		if (mode.mode === "openspec" && provider.getSnapshot(sessionId).freshness !== "unavailable") await repaint();
 		const snapshot = await provider.refresh(sessionId, { signal: options.signal, isCurrent: gen.isCurrent });
 		if (gen.isCurrent()) {
 			ensureWatch(sessionId, snapshot);

@@ -82,7 +82,8 @@ export function describeSnapshot(snapshot: Snapshot, options: DescribeOptions = 
 		lines.push("OpenSpec sync: no change is chosen. Run /todo-settings to choose one. Linked tasks are unavailable.");
 	} else {
 		const rev = snapshot.revision ? ` · revision ${snapshot.revision}` : "";
-		lines.push(`OpenSpec sync: ${snapshot.binding.change} (${snapshot.binding.root}) · ${snapshot.freshness}${rev}`);
+		const pending = snapshot.refreshing ? " · refreshing, showing the last committed view" : "";
+		lines.push(`OpenSpec sync: ${snapshot.binding.change} (${snapshot.binding.root}) · ${snapshot.freshness}${rev}${pending}`);
 		if (snapshot.freshness === "stale" || snapshot.freshness === "unavailable") {
 			lines.push(`⚠ The OpenSpec view is ${snapshot.freshness}, so linked changes are disabled. Run /todos refresh.`);
 		}
@@ -144,7 +145,7 @@ export function projectPanelModel(snapshot: Snapshot): PanelModel {
 	return {
 		state,
 		sections: {
-			openspec: { complete: i?.complete ?? linked.filter((r) => r.done).length, total: i?.total ?? linked.length, freshness: snapshot.freshness },
+			openspec: { complete: i?.complete ?? linked.filter((r) => r.done).length, total: i?.total ?? linked.length, freshness: snapshot.freshness, refreshing: snapshot.refreshing },
 			incidental: { complete: incidental.filter((t) => t.status === "completed").length, total: incidental.length },
 		},
 	};

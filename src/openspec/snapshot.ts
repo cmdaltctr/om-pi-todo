@@ -34,6 +34,8 @@ export interface Snapshot {
 	freshness: Freshness;
 	/** True only for a fresh view whose rows can each be mapped to the file. */
 	writable: boolean;
+	/** A read of the change is running. The rows shown are the last committed ones. */
+	refreshing: boolean;
 	/** The binding cannot continue; the user must choose a change again. */
 	needsReselect: boolean;
 	/** Are the planning artefacts written? Says nothing about implementation. */
@@ -83,6 +85,8 @@ interface Committed {
 interface Slot {
 	started: number;
 	committedSeq: number;
+	/** Reads of the change that are running now. */
+	inflight: number;
 	committed?: Committed;
 	nextId: number;
 	/** Set when a completion could not be confirmed; cleared by a later successful refresh. */
@@ -152,14 +156,14 @@ export function createSnapshotProvider(deps: SnapshotDeps, sources: SnapshotSour
 
 	const slot = (sessionId: string): Slot => {
 		let s = slots.get(sessionId);
-		if (!s) slots.set(sessionId, (s = { started: 0, committedSeq: 0, nextId: 1 }));
+		if (!s) slots.set(sessionId, (s = { started: 0, committedSeq: 0, inflight: 0, nextId: 1 }));
 		return s;
 	};
 
 	function assemble(sessionId: string): Snapshot {
 		const mode = sources.getMode(sessionId);
 		const ordinary = sources.getOrdinary(sessionId);
-		const base = { mode: mode.mode, linkedNextId: slots.get(sessionId)?.nextId ?? 1, ordinary, ordinaryCounts: selectTodoCounts({ tasks: [...ordinary], nextId: 1 }), linked: [] as LinkedRow[], notes: [] as string[], writable: false, needsReselect: false };
+		const base = { mode: mode.mode, linkedNextId: slots.get(sessionId)?.nextId ?? 1, refreshing: (slots.get(sessionId)?.inflight ?? 0) > 0, ordinary, ordinaryCounts: selectTodoCounts({ tasks: [...ordinary], nextId: 1 }), linked: [] as LinkedRow[], notes: [] as string[], writable: false, needsReselect: false };
 		if (mode.mode !== "openspec") return { ...base, freshness: "inactive", diagnostics: [] };
 		if (!mode.binding) return { ...base, freshness: "unbound", needsReselect: true, diagnostics: ["OpenSpec sync is selected but no change is chosen. Run /todo-settings to choose one."] };
 
@@ -250,6 +254,7 @@ export function createSnapshotProvider(deps: SnapshotDeps, sources: SnapshotSour
 			if (mode.mode !== "openspec" || !mode.binding) return assemble(sessionId);
 			const s = slot(sessionId);
 			const seq = ++s.started;
+			s.inflight++;
 			const binding = mode.binding;
 
 			let outcome: Committed | Failure = new Failure("The task file changed during refresh. Retry when it settles.");
@@ -263,6 +268,7 @@ export function createSnapshotProvider(deps: SnapshotDeps, sources: SnapshotSour
 			} catch (error) {
 				outcome = new Failure(`Refresh failed: ${(error as Error).message}`);
 			}
+			s.inflight--;
 
 			// An obsolete owner (the session rebound, branched or shut down) must not publish.
 			if (options.isCurrent && !options.isCurrent()) return assemble(sessionId);

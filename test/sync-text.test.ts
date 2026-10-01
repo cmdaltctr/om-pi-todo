@@ -23,6 +23,7 @@ function snap(over: Partial<Snapshot> = {}): Snapshot {
 		binding: { root: "/r", change: "add-thing" },
 		freshness: "fresh",
 		writable: true,
+		refreshing: false,
 		needsReselect: false,
 		planning: { isComplete: true, artifacts: [] },
 		implementation: { state: "ready", total: 3, complete: 1, remaining: 2 },
@@ -50,6 +51,13 @@ describe("describing the view", () => {
 			"[pending] #3 1.3 Later",
 			"Incidental tasks: none.",
 		]);
+	});
+
+	it("says a read is running while still showing the last committed view", () => {
+		const out = describeSnapshot(snap({ refreshing: true }));
+		expect(out[0]).toBe("OpenSpec sync: add-thing (/r) · fresh · revision rev1 · refreshing, showing the last committed view");
+		expect(out.join("\n")).toContain("[pending] #2 1.2 Open");
+		expect(describeSnapshot(snap())[0]).not.toContain("refreshing");
 	});
 
 	it("never presents complete planning as implementation progress", () => {
@@ -214,7 +222,8 @@ describe("panel model", () => {
 
 	it("falls back to the tracked rows when no CLI view exists", () => {
 		const s = snap({ implementation: undefined, freshness: "unavailable" });
-		expect(projectPanelModel(s).sections!.openspec).toEqual({ complete: 1, total: 3, freshness: "unavailable" });
+		expect(projectPanelModel(s).sections!.openspec).toEqual({ complete: 1, total: 3, freshness: "unavailable", refreshing: false });
+		expect(projectPanelModel(snap({ refreshing: true })).sections!.openspec.refreshing).toBe(true);
 	});
 
 	it("carries freshness so the heading can warn", () => {

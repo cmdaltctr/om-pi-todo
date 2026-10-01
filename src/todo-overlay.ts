@@ -175,7 +175,7 @@ export class TodoOverlay {
 		}
 		const { openspec, incidental } = sections;
 		const flag = openspec.freshness === "stale" || openspec.freshness === "unavailable" ? ` ⚠ ${openspec.freshness}` : "";
-		let text = `${base} · OpenSpec ${openspec.complete}/${openspec.total}${flag}`;
+		let text = `${base} · OpenSpec ${openspec.complete}/${openspec.total}${flag}${openspec.refreshing ? " ↻" : ""}`;
 		if (incidental.total > 0) text += ` · incidental ${incidental.complete}/${incidental.total}`;
 		return text;
 	}
