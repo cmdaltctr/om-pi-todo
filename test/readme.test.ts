@@ -100,12 +100,14 @@ describe("README examples match the product", () => {
 		expect(JSON.parse(`[${original.text}]`)).toEqual(["npm:@juicesharp/rpiv-todo"]);
 	});
 
-	it("the activation plan names a real entry file, and does not claim it is already set up", () => {
+	it("the activation record names a real entry file and the manifest declares it", () => {
 		expect(existsSync(join(ROOT, "src/extension.ts"))).toBe(true);
 		expect(readme).toContain('"pi": { "extensions": ["./src/extension.ts"] }');
-		expect(readme).toContain("**not loaded by Pi until you activate it**");
 		const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf-8"));
-		expect(pkg.pi).toBeUndefined(); // activation has not happened
+		expect(pkg.pi).toEqual({ extensions: ["./src/extension.ts"] }); // the entry the README documents
+		for (const entry of pkg.pi.extensions) expect(existsSync(join(ROOT, entry)), entry).toBe(true);
+		expect(readme).toContain("## Activation");
+		expect(readme).toContain("Done on 2026-10-01");
 	});
 
 	it("the host peers it lists are exactly the declared peers", () => {

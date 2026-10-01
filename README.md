@@ -11,7 +11,7 @@ This package is a local derivative of `@juicesharp/rpiv-todo` 2.11.0 (MIT). See 
 
 You own this code. It has no `rpiv-*` dependency. It needs these host packages, listed as wildcard peers in `package.json`: `@earendil-works/pi-ai`, `@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui` and `typebox`. Pi supplies them. Do not install private copies.
 
-The extension is **not loaded by Pi until you activate it** (see Activation).
+Pi loads this package from its directory. See Activation for how it is wired in, and Rollback to undo it.
 
 ## Usage
 
@@ -102,7 +102,7 @@ If a completion is reported as written but not confirmed, run `/todos refresh`, 
 
 ## Activation
 
-Not done yet. The steps below are the plan, and each needs your approval.
+Done on 2026-10-01. These are the steps that were applied, kept as a record. The settings backup is in `a dated backup folder`.
 
 1. Back up `~/.pi/agent/settings.json`.
 2. Add `"pi": { "extensions": ["./src/extension.ts"] }` to this package's `package.json`.

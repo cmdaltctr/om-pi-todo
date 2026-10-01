@@ -4,6 +4,11 @@
   "private": true,
   "description": "Pi todo extension with normal and OpenSpec sync modes. Local derivative of @juicesharp/rpiv-todo 2.11.0.",
   "type": "module",
+  "pi": {
+    "extensions": [
+      "./src/extension.ts"
+    ]
+  },
   "license": "MIT",
   "scripts": {
     "test": "vitest run",
