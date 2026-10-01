@@ -3,5 +3,13 @@
 	"useTabs": true,
 	"printWidth": 120,
 	"singleQuote": false,
-	"ignorePatterns": [".pi-host/**", "node_modules/**", "bun.lock", "NOTICE.md", "LICENSE"]
+	"ignorePatterns": [
+		".pi-host/**",
+		"node_modules/**",
+		"graphify-out/**",
+		"docs/local-docs/**",
+		"bun.lock",
+		"NOTICE.md",
+		"LICENSE"
+	]
 }
