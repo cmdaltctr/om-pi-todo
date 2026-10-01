@@ -1,26 +1,34 @@
 /**
- * todo-overlay.ts — Persistent widget showing todo list above the editor.
+ * todo-overlay.ts — Persistent widget showing the todo list above the editor.
  *
- * Lifecycle controller for Pi's `setWidget` contract: factory-form
- * registration in widgetContainerAbove, register-once + requestRender()
- * refresh, configurable collapse-not-scroll (default 12 content rows via
- * getMaxWidgetLines(); plus a trailing spacer row so the widget renders up
- * to 13 lines), Pi tool-output expansion awareness, auto-hide when empty.
+ * Lifecycle controller for Pi's `setWidget` contract: factory-form registration
+ * in widgetContainerAbove, register-once + requestRender() refresh, configurable
+ * collapse-not-scroll (default 12 content rows via getMaxWidgetLines(), plus a
+ * trailing spacer row), Pi tool-output expansion awareness, and auto-hide when
+ * the list is empty.
  *
- * Reads live state via `getRenderState()` (the ctx-less foreground slot) at render
- * time — NEVER `replayFromBranch` from `tool_execution_end` (branch is stale;
- * `message_end` runs after).
+ * Counts are taken over every non-deleted task before any row is hidden, so
+ * hiding a completed row never lowers the completed total. Hidden completed rows
+ * are reported, and a list whose tasks are all completed keeps a compact summary
+ * until the list is cleared or replaced. Each row separates a task's status from
+ * what is happening to it (see view/presentation.ts).
+ *
+ * Reads committed state through `source()` at render time. It never reads branch
+ * history, files or processes while rendering.
  */
 
 import type { ExtensionUIContext, Theme } from "@earendil-works/pi-coding-agent";
 import { type TUI, truncateToWidth } from "@earendil-works/pi-tui";
 import { COLLAPSE_KEY_OFF } from "./config.js";
 import { getMaxWidgetLines, resolveCollapseKey } from "./preferences.js";
-import { formatStatusLabel, t } from "./state/labels.js";
+import { t } from "./state/labels.js";
+import { getRunState, type RunState } from "./state/run-state.js";
 import { selectHasActive, selectOverlayLayout, selectShowTaskIds, selectTodoCounts } from "./state/selectors.js";
-import type { TaskState } from "./state/state.js";
-import { getRenderState } from "./state/store.js";
+import { getActiveRenderSession, getRenderState } from "./state/store.js";
+import type { Task } from "./tool/types.js";
 import { formatOverlayTaskLine } from "./view/format.js";
+import type { PanelModel, PanelSections } from "./view/panel-model.js";
+import { presentTask } from "./view/presentation.js";
 
 const WIDGET_KEY = "rpiv-todos";
 
@@ -30,10 +38,13 @@ const OVERLAY_MORE = "more";
 const OVERLAY_EXPAND_HINT = "{key} to expand";
 const OVERLAY_COLLAPSED = "collapsed";
 
-export class TodoOverlay {
-	/** `source` supplies the tasks to show. The default is the foreground session's ordinary list. */
-	constructor(private readonly source: () => TaskState = getRenderState) {}
+interface Snapshot {
+	tasks: Task[];
+	nextId: number;
+	sections?: PanelSections;
+}
 
+export class TodoOverlay {
 	private uiCtx: ExtensionUIContext | undefined;
 	private widgetRegistered = false;
 	private tui: TUI | undefined;
@@ -41,6 +52,15 @@ export class TodoOverlay {
 	private hiddenCompletedTaskIds = new Set<number>();
 	private lastNextId: number | undefined;
 	private collapsed = false;
+
+	/**
+	 * `source` supplies what to show; the default is the foreground session's ordinary list.
+	 * `runState` says whether the agent is working; the default reads the foreground session.
+	 */
+	constructor(
+		private readonly source: () => PanelModel = () => ({ state: getRenderState() }),
+		private readonly runState: () => RunState = () => getRunState(getActiveRenderSession()),
+	) {}
 
 	setUICtx(ctx: ExtensionUIContext): void {
 		// Identity-compare so repeat session_start handlers are idempotent;
@@ -55,9 +75,9 @@ export class TodoOverlay {
 	update(): void {
 		if (!this.uiCtx) return;
 		const snapshot = this.getSnapshot();
-		const visible = this.selectOverlayTasks(snapshot);
 
-		if (visible.length === 0) {
+		// An all-completed list keeps its summary after its rows are hidden; only an empty list removes the panel.
+		if (snapshot.tasks.every((task) => task.status === "deleted")) {
 			if (this.widgetRegistered) {
 				this.uiCtx.setWidget(WIDGET_KEY, undefined);
 				this.widgetRegistered = false;
@@ -87,6 +107,17 @@ export class TodoOverlay {
 		}
 	}
 
+	/**
+	 * Register the panel again on `ctx`, as after a failed repaint or a reload. Throws when the host
+	 * cannot register it, leaving the panel unregistered so the next update retries.
+	 */
+	reregister(ctx: ExtensionUIContext): void {
+		this.uiCtx = ctx;
+		this.widgetRegistered = false;
+		this.tui = undefined;
+		this.update();
+	}
+
 	resetCompletedDisplayState(): void {
 		this.completedTaskIdsPendingHide.clear();
 		this.hiddenCompletedTaskIds.clear();
@@ -114,57 +145,61 @@ export class TodoOverlay {
 		return this.widgetRegistered;
 	}
 
-	private getSnapshot() {
-		const state = this.source();
+	private getSnapshot(): Snapshot {
+		const model = this.source();
+		const state = model.state;
 		if (this.lastNextId !== undefined && state.nextId < this.lastNextId) {
 			this.resetCompletedDisplayState();
 		}
 		this.lastNextId = state.nextId;
-		const completedTaskIds = new Set(
-			state.tasks.filter((task) => task.status === "completed").map((task) => task.id),
-		);
+		const completedTaskIds = new Set(state.tasks.filter((task) => task.status === "completed").map((task) => task.id));
 		for (const taskId of this.completedTaskIdsPendingHide) {
 			if (!completedTaskIds.has(taskId)) this.completedTaskIdsPendingHide.delete(taskId);
 		}
 		for (const taskId of this.hiddenCompletedTaskIds) {
 			if (!completedTaskIds.has(taskId)) this.hiddenCompletedTaskIds.delete(taskId);
 		}
-		return { tasks: [...state.tasks], nextId: state.nextId };
+		return { tasks: [...state.tasks], nextId: state.nextId, sections: model.sections };
 	}
 
-	private selectOverlayTasks(snapshot: ReturnType<TodoOverlay["getSnapshot"]>) {
-		return snapshot.tasks.filter((task) => task.status !== "deleted" && !this.shouldHideCompletedTask(task));
-	}
-
-	private shouldHideCompletedTask(task: ReturnType<TodoOverlay["getSnapshot"]>["tasks"][number]): boolean {
+	private isHiddenCompleted(task: Task): boolean {
 		return task.status === "completed" && this.hiddenCompletedTaskIds.has(task.id);
+	}
+
+	/** Heading text with its counts, taken before any row is hidden. */
+	private headingText(all: { tasks: Task[]; nextId: number }, sections: PanelSections | undefined): string {
+		const base = t("overlay.heading", OVERLAY_HEADING);
+		if (!sections) {
+			const counts = selectTodoCounts(all);
+			return `${base} (${counts.completed}/${counts.total})`;
+		}
+		const { openspec, incidental } = sections;
+		const flag = openspec.freshness === "stale" || openspec.freshness === "unavailable" ? ` ⚠ ${openspec.freshness}` : "";
+		let text = `${base} · OpenSpec ${openspec.complete}/${openspec.total}${flag}`;
+		if (incidental.total > 0) text += ` · incidental ${incidental.complete}/${incidental.total}`;
+		return text;
 	}
 
 	private renderWidget(theme: Theme, width: number): string[] {
 		const snapshot = this.getSnapshot();
-		const overlayTasks = this.selectOverlayTasks(snapshot);
-		if (overlayTasks.length === 0) return [];
+		const all = snapshot.tasks.filter((task) => task.status !== "deleted");
+		if (all.length === 0) return [];
 
-		const overlayState = { tasks: overlayTasks, nextId: snapshot.nextId };
+		// Everything below the heading works on the rows left after hiding; the heading and totals do not.
+		const hiddenByTurn = all.filter((task) => this.isHiddenCompleted(task)).length;
+		const overlayTasks = all.filter((task) => !this.isHiddenCompleted(task));
+		const allState = { tasks: all, nextId: snapshot.nextId };
+
 		const truncate = (line: string): string => truncateToWidth(line, width, "…");
-		const counts = selectTodoCounts(overlayState);
-		const hasActive = selectHasActive(overlayState);
-		const showIds = selectShowTaskIds(overlayState);
-
+		const hasActive = selectHasActive(allState);
 		const headingColor = hasActive ? "accent" : "dim";
 		const headingIcon = hasActive ? "●" : "○";
-		const headingText = `${t("overlay.heading", OVERLAY_HEADING)} (${counts.completed}/${counts.total})`;
-		const heading = truncate(`${theme.fg(headingColor, headingIcon)} ${theme.fg(headingColor, headingText)}`);
+		const heading = truncate(`${theme.fg(headingColor, headingIcon)} ${theme.fg(headingColor, this.headingText(allState, snapshot.sections))}`);
 
-		// Collapsed view: just the heading + a dim "└─" expand hint, then the
-		// trailing spacer. Short-circuit before the budget math and the completed-
-		// display tracking — nothing is shown to track, and skipping the tracking
-		// when nothing is rendered is correctness, not optimization. The hint splices
-		// the resolved key into the {key} placeholder (per-render, like the row
-		// budget); a config edit needs /reload to re-bind the actual shortcut. The
-		// "off" sentinel is reachable here mid-session (config edited after the
-		// shortcut was bound and the overlay collapsed) — render a static collapsed
-		// label instead of splicing the sentinel into the placeholder.
+		// Collapsed view: just the heading + a dim "└─" expand hint, then the trailing spacer. Short-circuit
+		// before the budget math and the completed-display tracking — nothing is shown to track, and skipping
+		// the tracking when nothing is rendered is correctness, not optimisation. The hint splices the
+		// resolved key into the {key} placeholder; the "off" sentinel renders a static label instead.
 		if (this.collapsed) {
 			const key = resolveCollapseKey();
 			const hint =
@@ -174,53 +209,51 @@ export class TodoOverlay {
 			return this.withTrailingSpacer([heading, truncate(`${theme.fg("dim", "└─")} ${theme.fg("dim", hint)}`)]);
 		}
 
+		// Every row is hidden because every task is completed: keep a compact summary.
+		if (overlayTasks.length === 0) {
+			const noun = hiddenByTurn === 1 ? "row" : "rows";
+			return this.withTrailingSpacer([heading, truncate(`${theme.fg("dim", "└─")} ${theme.fg("dim", `all completed (${hiddenByTurn} ${noun} hidden)`)}`)]);
+		}
+
 		const lines: string[] = [heading];
-		// Budget for content rows (heading + tasks/summary). The rendered widget is
-		// one line taller — withTrailingSpacer() appends a blank row below the panel.
-		// Pi's global tool-output expansion mode is read on every render so its
-		// expand/collapse shortcut also expands this live widget. Optional chaining
-		// preserves compatibility with hosts predating getToolsExpanded().
+		const overlayState = { tasks: overlayTasks, nextId: snapshot.nextId };
+		const showIds = selectShowTaskIds(allState);
+		const byId = new Map(all.map((task) => [task.id, task]));
+		const run = this.runState();
+		// Pi's global tool-output expansion mode is read on every render so its expand/collapse shortcut also
+		// expands this live widget. Optional chaining preserves compatibility with hosts predating it.
 		const bodyBudget = this.uiCtx?.getToolsExpanded?.() === true ? overlayTasks.length : getMaxWidgetLines() - 1;
 		const layout = selectOverlayLayout(overlayState, bodyBudget);
 		for (const task of layout.visible) {
-			lines.push(truncate(`${theme.fg("dim", "├─")} ${formatOverlayTaskLine(task, theme, showIds)}`));
+			lines.push(truncate(`${theme.fg("dim", "├─")} ${formatOverlayTaskLine(task, theme, showIds, presentTask(task, byId, run))}`));
 		}
 
 		const newlyDisplayedCompletedTaskIds = overlayTasks
-			.filter(
-				(task) =>
-					task.status === "completed" &&
-					!this.completedTaskIdsPendingHide.has(task.id) &&
-					!this.hiddenCompletedTaskIds.has(task.id),
-			)
+			.filter((task) => task.status === "completed" && !this.completedTaskIdsPendingHide.has(task.id) && !this.hiddenCompletedTaskIds.has(task.id))
 			.map((task) => task.id);
 		for (const taskId of newlyDisplayedCompletedTaskIds) {
 			this.completedTaskIdsPendingHide.add(taskId);
 		}
 
-		if (layout.hiddenCompleted === 0 && layout.truncatedTail === 0) {
+		const hiddenCompleted = layout.hiddenCompleted + hiddenByTurn;
+		if (hiddenCompleted === 0 && layout.truncatedTail === 0) {
 			const last = lines.length - 1;
 			lines[last] = lines[last].replace("├─", "└─");
 			return this.withTrailingSpacer(lines);
 		}
 
-		const totalHidden = layout.hiddenCompleted + layout.truncatedTail;
-		const overflowParts: string[] = [];
-		if (layout.hiddenCompleted > 0) overflowParts.push(`${layout.hiddenCompleted} ${formatStatusLabel("completed")}`);
-		if (layout.truncatedTail > 0) overflowParts.push(`${layout.truncatedTail} ${formatStatusLabel("pending")}`);
+		const totalHidden = hiddenCompleted + layout.truncatedTail;
+		const parts: string[] = [];
+		if (hiddenCompleted > 0) parts.push(`${hiddenCompleted} completed hidden`);
+		if (layout.truncatedTail > 0) parts.push(`${layout.truncatedTail} pending`);
 		const more = t("overlay.more", OVERLAY_MORE);
-		const summary =
-			overflowParts.length > 0 ? `+${totalHidden} ${more} (${overflowParts.join(", ")})` : `+${totalHidden} ${more}`;
-		lines.push(truncate(`${theme.fg("dim", "└─")} ${theme.fg("dim", summary)}`));
+		lines.push(truncate(`${theme.fg("dim", "└─")} ${theme.fg("dim", `+${totalHidden} ${more} (${parts.join(", ")})`)}`));
 		return this.withTrailingSpacer(lines);
 	}
 
 	/**
-	 * Append a trailing blank line so the overlay isn't flush against the
-	 * editor box. Pi's host adds a leading spacer above the widget but none
-	 * below, which leaves the last "└─" row (or the "+N more" summary) glued
-	 * to the input box. The empty string gives the "Todos" panel a little
-	 * breathing room.
+	 * Append a trailing blank line so the overlay isn't flush against the editor box. Pi's host adds a
+	 * leading spacer above the widget but none below.
 	 */
 	private withTrailingSpacer(lines: string[]): string[] {
 		if (lines.length === 0) return lines;

@@ -4,6 +4,7 @@ import { formatStatusLabel } from "../state/labels.js";
 import { selectTaskSubjectById } from "../state/selectors.js";
 import type { TaskState } from "../state/state.js";
 import { sanitizeTerminalText } from "../tool/sanitize.js";
+import type { Presentation } from "./presentation.js";
 import type { Task, TaskAction, TaskDetails, TaskMutationParams, TaskStatus } from "../tool/types.js";
 
 // Re-export so legacy import paths (todo.ts, tests) continue to resolve;
@@ -69,7 +70,8 @@ export function overlayStatusGlyph(status: TaskStatus, theme: Theme): string {
  * Format a single task row for the persistent overlay. The subject color
  * reflects task state while IDs and supporting metadata stay visually quiet.
  */
-export function formatOverlayTaskLine(t: Task, theme: Theme, showId: boolean): string {
+export function formatOverlayTaskLine(t: Task, theme: Theme, showId: boolean, presentation?: Presentation): string {
+	if (presentation) return formatPresentedLine(t, theme, showId, presentation);
 	const glyph = overlayStatusGlyph(t.status, theme);
 	const subjectColor =
 		t.status === "in_progress" ? "accent" : t.status === "completed" || t.status === "deleted" ? "muted" : "text";
@@ -84,6 +86,41 @@ export function formatOverlayTaskLine(t: Task, theme: Theme, showId: boolean): s
 		line += ` ${theme.fg("muted", `(${sanitizeTerminalText(t.activeForm)})`)}`;
 	}
 	if (t.blockedBy && t.blockedBy.length > 0) {
+		line += ` ${theme.fg("muted", `⛓ ${t.blockedBy.map((id) => `#${id}`).join(",")}`)}`;
+	}
+	return line;
+}
+
+/**
+ * Overlay row that separates what a task is from what is happening to it. The
+ * running glyph and the activity text appear only for a task that is executing.
+ * A stopped task says Paused or Idle, a blocked one says what blocks it, and the
+ * agent's own waiting and failure reasons are shown as supplied.
+ */
+function formatPresentedLine(t: Task, theme: Theme, showId: boolean, p: Presentation): string {
+	const glyph =
+		p.kind === "completed"
+			? theme.fg("success", "✓")
+			: p.kind === "running"
+				? theme.fg("warning", "◐")
+				: p.kind === "blocked"
+					? theme.fg("warning", "⊘")
+					: p.kind === "paused" || p.kind === "idle"
+						? theme.fg("dim", "◌")
+						: theme.fg("dim", "○");
+	const subjectColor = p.kind === "running" ? "accent" : p.kind === "completed" ? "muted" : "text";
+	let subject = theme.fg(subjectColor, sanitizeTerminalText(t.subject));
+	if (p.kind === "completed") subject = theme.strikethrough(subject);
+	let line = glyph;
+	if (showId) line += ` ${theme.fg("dim", `#${t.id}`)}`;
+	line += ` ${subject}`;
+	if (p.running && t.activeForm) line += ` ${theme.fg("muted", `(${sanitizeTerminalText(t.activeForm)})`)}`;
+	if (p.kind === "paused" || p.kind === "idle" || p.kind === "blocked") line += ` ${theme.fg("muted", p.label)}`;
+	if (p.kind !== "completed") {
+		if (t.waitingReason) line += ` ${theme.fg("warning", `waiting: ${sanitizeTerminalText(t.waitingReason)}`)}`;
+		if (t.failureReason) line += ` ${theme.fg("error", `failed: ${sanitizeTerminalText(t.failureReason)}`)}`;
+	}
+	if (p.kind !== "blocked" && t.blockedBy && t.blockedBy.length > 0) {
 		line += ` ${theme.fg("muted", `⛓ ${t.blockedBy.map((id) => `#${id}`).join(",")}`)}`;
 	}
 	return line;

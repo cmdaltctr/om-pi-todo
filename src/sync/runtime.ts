@@ -20,7 +20,8 @@ import { getSessionMode, type Binding } from "../session-mode.js";
 import type { TaskState } from "../state/state.js";
 import type { Task } from "../tool/types.js";
 import { replayLinked } from "./persist.js";
-import { projectPanelState } from "./text.js";
+import type { PanelModel } from "../view/panel-model.js";
+import { projectPanelModel, projectPanelState } from "./text.js";
 
 export interface RuntimeDeps {
 	run?: (args: readonly string[], options: ExecOptions) => Promise<ExecResult>;
@@ -33,7 +34,8 @@ export interface RuntimeDeps {
 	getOrdinary(sessionId: string): readonly Task[];
 	/** Repaint the panel from committed state. May throw or reject; the runtime reports it. */
 	onRepaint?: () => void | Promise<void>;
-	onError?: (message: string) => void;
+	/** `kind` is "repaint" for panel repaint failures, which the owner of the panel has already reported. */
+	onError?: (message: string, kind?: "repaint") => void;
 }
 
 export interface Generation {
@@ -53,7 +55,7 @@ export function createRuntime(deps: RuntimeDeps) {
 	const generations = new Map<string, number>();
 	const watched = new Map<string, Watched>();
 	const background = new Set<Promise<unknown>>();
-	const report = (message: string) => deps.onError?.(message);
+	const report = (message: string, kind?: "repaint") => deps.onError?.(message, kind);
 	const watch = deps.watch ?? watchTarget;
 
 	const provider = createSnapshotProvider({ run: deps.run, readFile: deps.readFile }, { getMode: getSessionMode, getOrdinary: deps.getOrdinary });
@@ -78,7 +80,7 @@ export function createRuntime(deps: RuntimeDeps) {
 		try {
 			await deps.onRepaint?.();
 		} catch (error) {
-			report(`The todo panel could not be repainted: ${(error as Error).message}. Run /todos refresh.`);
+			report(`The todo panel could not be repainted: ${(error as Error).message}. Run /todos refresh.`, "repaint");
 		}
 	}
 
@@ -177,6 +179,10 @@ export function createRuntime(deps: RuntimeDeps) {
 
 		panelState(sessionId: string): TaskState {
 			return projectPanelState(provider.getSnapshot(sessionId));
+		},
+
+		panelModel(sessionId: string): PanelModel {
+			return projectPanelModel(provider.getSnapshot(sessionId));
 		},
 
 		/** Resolves when background work has finished, including coalesced refreshes. */

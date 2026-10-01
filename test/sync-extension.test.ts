@@ -60,7 +60,7 @@ describe("session lifecycle in sync mode", () => {
 		await t.fire("session_start", t.session());
 		await t.settle();
 		const lines = t.panel()!;
-		expect(lines[0]).toBe("● Todos (1/2)");
+		expect(lines[0]).toBe("● Todos · OpenSpec 1/2");
 		expect(lines.join("\n")).toContain("1.1 Done");
 		expect(lines.join("\n")).toContain("1.2 Open");
 		expect(t.watches.filter((w) => !w.closed)).toHaveLength(1);
@@ -96,7 +96,8 @@ describe("session lifecycle in sync mode", () => {
 		await t.fire("tool_execution_end", ctx, { toolName: "todo", isError: false });
 		await t.settle();
 		const text = t.panel()!.join("\n");
-		expect(text).toContain("⛓ #1");
+		expect(text).toContain("Blocked by #1");
+		expect(text).toContain("#2 Second");
 		expect(text).not.toContain("1000001");
 	});
 
@@ -122,19 +123,19 @@ describe("session lifecycle in sync mode", () => {
 		const done = await callTool(t.host, ctx, { action: "update", id: 1, status: "completed", expectedRevision: rev });
 		expect(done.text).toContain("CLI confirmed this task as done");
 		await t.settle();
-		expect(t.panel()![0]).toBe("● Todos (1/2)");
+		expect(t.panel()![0]).toBe("● Todos · OpenSpec 1/2");
 	});
 
 	it("an external edit reaches the panel through the watcher with no prompt", async () => {
 		const t = await boot(md("- [ ] A", "- [ ] B"));
 		await t.fire("session_start", t.session());
 		await t.settle();
-		expect(t.panel()![0]).toBe("● Todos (0/2)");
+		expect(t.panel()![0]).toBe("● Todos · OpenSpec 0/2");
 		writeFileSync(paths.tasksPath, md("- [x] A", "- [x] B"));
 		t.watches.find((w) => !w.closed)!.fire();
 		await t.settle();
 		await sleep(60);
-		expect(t.panel()![0]).toBe("○ Todos (2/2)");
+		expect(t.panel()![0]).toBe("○ Todos · OpenSpec 2/2");
 	});
 
 	it("shutdown stops the session's reading, watcher and view", async () => {
@@ -186,7 +187,7 @@ describe("/todo-settings restarts sync", () => {
 		await t.host.commands.get("todo-settings").handler("", ctx);
 		await t.settle();
 		expect(getSessionMode("s1").binding).toEqual({ root: paths.root, change: "a" });
-		expect(t.panel()![0]).toBe("● Todos (1/2)");
+		expect(t.panel()![0]).toBe("● Todos · OpenSpec 1/2");
 		expect(t.watches.filter((w) => !w.closed)).toHaveLength(1);
 	});
 

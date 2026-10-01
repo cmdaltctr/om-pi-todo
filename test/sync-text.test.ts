@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { LinkedRow } from "../src/openspec/reconcile.js";
 import type { Snapshot } from "../src/openspec/snapshot.js";
 import { fingerprint } from "../src/openspec/tasks.js";
-import { describeLinked, describeSnapshot, INCIDENTAL_ID_OFFSET, linkedToTask, projectPanelState } from "../src/sync/text.js";
+import { describeLinked, describeSnapshot, INCIDENTAL_ID_OFFSET, linkedToTask, projectPanelModel, projectPanelState } from "../src/sync/text.js";
 import type { Task } from "../src/tool/types.js";
 
 const row = (id: number, description: string, over: Partial<LinkedRow> = {}): LinkedRow => ({
@@ -202,5 +202,34 @@ describe("panel data from the same snapshot", () => {
 		const before = projectPanelState(snap({ ordinary: [{ id: 5, subject: "x", status: "pending" }] })).nextId;
 		const after = projectPanelState(snap({ ordinary: [] })).nextId;
 		expect(after).toBeLessThan(before);
+	});
+});
+
+describe("panel model", () => {
+	it("uses OpenSpec's own totals for the heading, the same numbers /todos reports, even when the CLI counts boxes without text", () => {
+		const s = snap({ implementation: { state: "ready", total: 4, complete: 1, remaining: 3 } }); // 3 tracked rows, 1 textless box
+		expect(projectPanelModel(s).sections!.openspec).toMatchObject({ complete: 1, total: 4 });
+		expect(describeSnapshot(s).join("\n")).toContain("1/4 checked");
+	});
+
+	it("falls back to the tracked rows when no CLI view exists", () => {
+		const s = snap({ implementation: undefined, freshness: "unavailable" });
+		expect(projectPanelModel(s).sections!.openspec).toEqual({ complete: 1, total: 3, freshness: "unavailable" });
+	});
+
+	it("carries freshness so the heading can warn", () => {
+		for (const freshness of ["fresh", "stale", "unavailable"] as const) expect(projectPanelModel(snap({ freshness })).sections!.openspec.freshness).toBe(freshness);
+	});
+
+	it("counts incidental tasks apart from OpenSpec, leaving out deleted ones", () => {
+		const ordinary: Task[] = [{ id: 1, subject: "a", status: "completed" }, { id: 2, subject: "b", status: "pending" }, { id: 3, subject: "c", status: "deleted" }, { id: 4, subject: "d", status: "completed" }];
+		const model = projectPanelModel(snap({ ordinary }));
+		expect(model.sections!.incidental).toEqual({ complete: 2, total: 3 });
+		expect(model.sections!.openspec).toMatchObject({ complete: 1, total: 3 });
+	});
+
+	it("shares its rows with the panel state", () => {
+		const s = snap({ ordinary: [{ id: 1, subject: "x", status: "pending" }] });
+		expect(projectPanelModel(s).state).toEqual(projectPanelState(s));
 	});
 });

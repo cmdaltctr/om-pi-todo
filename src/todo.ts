@@ -30,6 +30,7 @@ import {
 	TodoParamsSchema,
 } from "./tool/types.js";
 import type { Runtime } from "./sync/runtime.js";
+import type { ToolReturn } from "./sync/tool.js";
 import { executeSyncTodo } from "./sync/tool.js";
 import { describeSnapshot, linkedToTask } from "./sync/text.js";
 import { formatCommandTaskLine, renderTodoCall, renderTodoResult } from "./view/format.js";
@@ -85,8 +86,30 @@ function callLookupState(runtime: Runtime | undefined, scope: string | undefined
 	return getRenderState();
 }
 
+/** Called after a task update has been committed, so the panel can repaint before the tool returns. */
+export interface ToolHooks {
+	onCommitted?(sessionId: string): void | Promise<void>;
+}
+
+const MUTATIONS: ReadonlySet<string> = new Set(["create", "update", "delete", "clear"]);
+
+/** Run the commit hook. A failure is a warning for the caller to append: the update itself stands. */
+async function afterCommit(hooks: ToolHooks | undefined, sessionId: string): Promise<string | undefined> {
+	try {
+		await hooks?.onCommitted?.(sessionId);
+		return undefined;
+	} catch (error) {
+		return `The todo panel could not be repainted: ${error instanceof Error ? error.message : String(error)}. Run /todos refresh.`;
+	}
+}
+
+function withWarning(result: ToolReturn, warning: string | undefined): ToolReturn {
+	if (!warning) return result;
+	return { ...result, content: [{ type: "text", text: `${result.content[0].text} ${warning}` }] };
+}
+
 /** Register the `todo` tool. Without a runtime the tool only ever runs in normal mode. */
-export function registerTodoTool(pi: ExtensionAPI, runtime?: Runtime): void {
+export function registerTodoTool(pi: ExtensionAPI, runtime?: Runtime, hooks?: ToolHooks): void {
 	const guidance = getPreferences().guidance ?? {};
 	pi.registerTool({
 		name: TOOL_NAME,
@@ -99,11 +122,17 @@ export function registerTodoTool(pi: ExtensionAPI, runtime?: Runtime): void {
 
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
 			if (runtime && getSessionMode(sid(ctx)).mode === "openspec") {
-				return executeSyncTodo(runtime, sid(ctx), params.action, params as TaskMutationParams, signal);
+				const reply = await executeSyncTodo(runtime, sid(ctx), params.action, params as TaskMutationParams, signal);
+				// A linked completion repaints inside the writer, which reports its own repaint problems.
+				const writerRepaints = params.action === "update" && params.status === "completed" && params.scope !== "incidental";
+				if (!MUTATIONS.has(params.action) || reply.details.error || writerRepaints) return reply;
+				return withWarning(reply, await afterCommit(hooks, sid(ctx)));
 			}
 			const result = applyTaskMutation(getState(sid(ctx)), params.action, params as TaskMutationParams);
 			commitState(sid(ctx), result.state);
-			return buildToolResult(params.action, params as TaskMutationParams, result.state, result.op);
+			const built = buildToolResult(params.action, params as TaskMutationParams, result.state, result.op);
+			if (!MUTATIONS.has(params.action) || result.op.kind === "error") return built;
+			return withWarning(built, await afterCommit(hooks, sid(ctx)));
 		},
 
 		// renderCall reflects the FOREGROUND slot, not the calling session's. Pi's
@@ -128,14 +157,42 @@ export function registerTodoTool(pi: ExtensionAPI, runtime?: Runtime): void {
 // /todos slash command
 // ---------------------------------------------------------------------------
 
-export function registerTodosCommand(pi: ExtensionAPI, runtime?: Runtime): void {
+/** What `/todos refresh` needs from the extension to recover the panel. */
+export interface PanelControl {
+	/** The message of the last repaint failure that has not been recovered from. */
+	lastFailure(): string | undefined;
+	/** Register the panel again on this session's live UI and draw committed state. Throws on failure. */
+	rebuild(ctx: Parameters<Parameters<ExtensionAPI["registerCommand"]>[1]["handler"]>[1]): Promise<"rebuilt" | "background">;
+}
+
+/** `/todos refresh`: read-only. Re-reads OpenSpec when synced, then redraws what is committed. Never writes. */
+async function refreshPanel(ctx: Parameters<Parameters<ExtensionAPI["registerCommand"]>[1]["handler"]>[1], runtime: Runtime | undefined, panel: PanelControl | undefined): Promise<void> {
+	const earlier = panel?.lastFailure();
+	if (panel) {
+		try {
+			if ((await panel.rebuild(ctx)) === "background") {
+				ctx.ui.notify("This session is not showing the todo panel, so nothing was redrawn.", "info");
+				return;
+			}
+		} catch (error) {
+			ctx.ui.notify(`Todo panel refresh failed: ${error instanceof Error ? error.message : String(error)}. Your tasks are unchanged. Run /todos refresh to retry.`, "error");
+			return;
+		}
+	}
+	// The data read comes after the redraw, so what is drawn last is the freshest committed view.
+	if (runtime && getSessionMode(sid(ctx)).mode === "openspec") await runtime.refresh(sid(ctx));
+	ctx.ui.notify(earlier ? `Todo panel recovered. The earlier problem was: ${earlier}` : "Todo panel refreshed.", "info");
+}
+
+export function registerTodosCommand(pi: ExtensionAPI, runtime?: Runtime, panel?: PanelControl): void {
 	pi.registerCommand(COMMAND_NAME, {
-		description: "Show all todos on the current branch, grouped by status",
-		handler: async (_args, ctx) => {
+		description: "Show all todos on the current branch, grouped by status. `/todos refresh` redraws the panel.",
+		handler: async (args, ctx) => {
 			if (!ctx.hasUI) {
 				ctx.ui.notify(t("command.requires_interactive", ERR_REQUIRES_INTERACTIVE), "error");
 				return;
 			}
+			if (String(args ?? "").trim() === "refresh") return refreshPanel(ctx, runtime, panel);
 			if (runtime && getSessionMode(sid(ctx)).mode === "openspec") {
 				const snapshot = await runtime.refresh(sid(ctx));
 				ctx.ui.notify(describeSnapshot(snapshot).join("\n"), "info");

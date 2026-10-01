@@ -14,7 +14,10 @@ import type { ChangeDiscovery } from "./discovery.js";
 import { createDiscovery } from "./openspec/discover.js";
 import { refreshPreferences, resolveCollapseKey } from "./preferences.js";
 import { registerTodoSettingsCommand } from "./settings.js";
+import { buildSettleReminder, unresolvedInProgress } from "./reminder.js";
+import { evictRunState, getRunState, runStateFromAgentEnd, setRunState } from "./state/run-state.js";
 import { createRuntime, type RuntimeDeps } from "./sync/runtime.js";
+import type { PanelModel } from "./view/panel-model.js";
 import { evictSessionMode, getSessionMode, replaySessionMode, setSessionMode } from "./session-mode.js";
 import { replayFromBranch } from "./state/replay.js";
 import {
@@ -27,7 +30,7 @@ import {
 	setActiveRenderSession,
 	sid,
 } from "./state/store.js";
-import { registerTodosCommand, registerTodoTool, TOOL_NAME } from "./todo.js";
+import { type PanelControl, registerTodosCommand, registerTodoTool, TOOL_NAME } from "./todo.js";
 import type { TodoOverlay } from "./todo-overlay.js";
 
 /** Shown once on start when sync is the selected mode and no change is bound. */
@@ -114,24 +117,35 @@ export default async function (
 	let uiCtx: ExtensionUIContext | undefined;
 	let lifecycleGeneration = 0;
 
+	/** The last panel repaint failure not yet recovered from, and the one already shown to the user. */
+	let lastPanelFailure: string | undefined;
+	let notifiedFailure: string | undefined;
+
+	/** Tell the user, in Pi's notification channel, or fall back to the console when there is no UI. */
+	const tell = (message: string, level: "warning" | "error") => {
+		if (uiCtx) uiCtx.notify(message, level);
+		else console.warn(`[pi-todo] ${message}`);
+	};
+
 	const runtime = createRuntime({
 		getOrdinary: (id) => getState(id).tasks,
-		onRepaint: () => updateTodoOverlay(),
-		onError: (message) => console.warn(`[pi-todo] ${message}`),
+		onRepaint: () => repaintForeground(),
+		// Panel failures were already shown by repaintForeground; everything else is shown here.
+		onError: (message, kind) => (kind === "repaint" ? console.warn(`[pi-todo] ${message}`) : tell(message, "warning")),
 		...runtimeOverrides,
 	});
 
 	/** What the panel shows: the shared OpenSpec snapshot in sync mode, the session list otherwise. */
-	const panelSource = () => {
+	const panelSource = (): PanelModel => {
 		const id = getActiveRenderSession();
-		return getSessionMode(id).mode === "openspec" ? runtime.panelState(id) : getRenderState();
+		return getSessionMode(id).mode === "openspec" ? runtime.panelModel(id) : { state: getRenderState() };
 	};
 
 	async function updateTodoOverlay(
 		resetCompletedDisplayState = false,
 		generation = lifecycleGeneration,
 	): Promise<void> {
-		const hasVisibleTasks = panelSource().tasks.some((task) => task.status !== "deleted");
+		const hasVisibleTasks = panelSource().state.tasks.some((task) => task.status !== "deleted");
 		if (!uiCtx || (!todoOverlay && !hasVisibleTasks)) return;
 
 		const { TodoOverlay } = await loadTodoOverlay();
@@ -143,12 +157,61 @@ export default async function (
 		todoOverlay.update();
 	}
 
-	registerTodoTool(pi, runtime);
-	registerTodosCommand(pi, runtime);
+	/**
+	 * Repaint the foreground panel. A failure is recorded, shown to the user once until a repaint works
+	 * again, and rethrown so the caller can add it to its own result. Task data is never touched.
+	 */
+	async function repaintForeground(resetCompletedDisplayState = false, generation = lifecycleGeneration): Promise<void> {
+		try {
+			await updateTodoOverlay(resetCompletedDisplayState, generation);
+			lastPanelFailure = undefined;
+			notifiedFailure = undefined;
+		} catch (error) {
+			if (isStaleOverlayModuleError(error)) throw error;
+			const message = formatError(error);
+			lastPanelFailure = message;
+			if (notifiedFailure !== message) {
+				notifiedFailure = message;
+				tell(`The todo panel could not be repainted: ${message}. Your tasks are safe. Run /todos refresh to retry.`, "error");
+			}
+			throw error;
+		}
+	}
+
+	/** For event handlers: a repaint problem has already been reported, so it must not break the host. */
+	const repaintQuietly = (resetCompletedDisplayState = false, generation = lifecycleGeneration): Promise<void> =>
+		repaintForeground(resetCompletedDisplayState, generation).catch((error) => {
+			if (isStaleOverlayModuleError(error)) throw error;
+		});
+
+	const panelControl: PanelControl = {
+		lastFailure: () => lastPanelFailure,
+		async rebuild(ctx) {
+			if (sid(ctx) !== getActiveRenderSession()) return "background";
+			try {
+				const { TodoOverlay } = await loadTodoOverlay();
+				uiCtx = ctx.ui;
+				todoOverlay ??= new TodoOverlay(panelSource);
+				todoOverlay.reregister(ctx.ui);
+				lastPanelFailure = undefined;
+				notifiedFailure = undefined;
+				return "rebuilt";
+			} catch (error) {
+				lastPanelFailure = formatError(error);
+				throw error;
+			}
+		},
+	};
+
+	registerTodoTool(pi, runtime, {
+		// Background sessions never repaint the foreground panel.
+		onCommitted: (sessionId) => (sessionId === getActiveRenderSession() ? repaintForeground() : undefined),
+	});
+	registerTodosCommand(pi, runtime, panelControl);
 	registerTodoSettingsCommand(pi, discoverChanges, {
 		onModeChanged: async (ctx) => {
 			runtime.start(sid(ctx), ctx);
-			await updateTodoOverlay(true);
+			await repaintQuietly(true);
 		},
 	});
 
@@ -192,7 +255,7 @@ export default async function (
 		} catch (e) {
 			if (!isStaleCtxError(e)) throw e;
 		}
-		if (isForeground) await updateTodoOverlay(true);
+		if (isForeground) await repaintQuietly(true);
 	};
 
 	pi.on("session_start", async (_event, ctx) => {
@@ -221,7 +284,7 @@ export default async function (
 		if (id !== getActiveRenderSession()) return;
 		const generation = ++lifecycleGeneration;
 		uiCtx = ctx.ui;
-		await updateTodoOverlay(true, generation);
+		await repaintQuietly(true, generation);
 	});
 
 	pi.on("session_compact", async (_event, ctx) => {
@@ -246,6 +309,7 @@ export default async function (
 		// The shutting-down session's own data slot is always evicted.
 		evictSession(s);
 		evictSessionMode(s);
+		evictRunState(s);
 		runtime.stop(s);
 		// Overlay teardown is sid-gated: a child shutdown (distinct sid) must not
 		// dispose the foreground's overlay. Only the foreground's own shutdown
@@ -273,17 +337,10 @@ export default async function (
 	// (branch is stale — message_end runs after tool_execution_end).
 	pi.on("tool_execution_end", async (event) => {
 		if (event.toolName !== TOOL_NAME || event.isError) return;
-		try {
-			await updateTodoOverlay();
-		} catch (e) {
-			// The tool itself succeeded — a transient overlay-load failure only
-			// costs this one refresh, and the loader's cleared memo lets the next
-			// update retry. Don't surface that as an extension error. The latched
-			// stale-namespace error still propagates: it never self-heals, and the
-			// user needs its restart guidance.
-			if (isStaleOverlayModuleError(e)) throw e;
-			console.warn(`[pi-todo] overlay refresh failed (will retry on next update): ${formatError(e)}`);
-		}
+		// The tool itself succeeded, and the tool already scheduled this repaint; this is the safety net.
+		// A repaint problem was shown to the user by repaintForeground. The latched stale-namespace
+		// error still propagates: it never self-heals, and the user needs its restart guidance.
+		await repaintQuietly();
 	});
 
 	// Evaluate the lazy graph after startup while Pi's boot-time dependency paths
@@ -294,7 +351,47 @@ export default async function (
 	const prewarmTimer = setTimeout(() => void loadTodoOverlay().catch(() => undefined), PREWARM_DELAY_MS);
 	prewarmTimer.unref?.();
 
-	pi.on("agent_start", async () => {
+	/** The session id, or undefined when the host's context has already been replaced. */
+	const sessionOf = (ctx: Parameters<typeof sid>[0]): string | undefined => {
+		try {
+			return sid(ctx);
+		} catch (e) {
+			if (!isStaleCtxError(e)) throw e;
+			return undefined;
+		}
+	};
+
+	/** Record the run state and, for the foreground session, redraw rows that depend on it. */
+	const runStateChanged = async (id: string): Promise<void> => {
+		if (id === getActiveRenderSession()) await repaintQuietly();
+	};
+
+	pi.on("agent_start", async (_event, ctx) => {
 		todoOverlay?.hideCompletedTasksFromPreviousTurn();
+		const id = sessionOf(ctx);
+		if (id === undefined) return;
+		setRunState(id, "running");
+		await runStateChanged(id);
+	});
+
+	// A run that ended by abort or error leaves its in-progress rows Paused; any other end leaves them Idle.
+	pi.on("agent_end", async (event, ctx) => {
+		const id = sessionOf(ctx);
+		if (id === undefined) return;
+		setRunState(id, runStateFromAgentEnd(event.messages));
+		await runStateChanged(id);
+	});
+
+	// Final and notification-only: nothing returned here can continue the agent. Show one reminder when
+	// work is still in progress. It never changes a task or a planning file.
+	pi.on("agent_settled", async (_event, ctx) => {
+		const id = sessionOf(ctx);
+		if (id === undefined) return;
+		if (getRunState(id) === "running") setRunState(id, "idle");
+		if (ctx.hasUI) {
+			const reminder = buildSettleReminder(unresolvedInProgress(id, runtime));
+			if (reminder) ctx.ui.notify(reminder, "warning");
+		}
+		await runStateChanged(id);
 	});
 }

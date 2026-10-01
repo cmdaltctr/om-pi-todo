@@ -11,6 +11,7 @@ import type { Snapshot } from "../openspec/snapshot.js";
 import type { TaskState } from "../state/state.js";
 import { deriveBlocks } from "../state/task-graph.js";
 import { sanitizeTerminalText } from "../tool/sanitize.js";
+import type { PanelModel } from "../view/panel-model.js";
 import type { Task, TaskStatus } from "../tool/types.js";
 
 /** Incidental task ids are shifted by this much in panel data so they never collide with linked ids. */
@@ -128,4 +129,23 @@ export function describeLinked(row: LinkedRow, snapshot: Snapshot): string[] {
 	if (task.failureReason) lines.push(`  failed: ${sanitizeTerminalText(task.failureReason)}`);
 	if (!row.mapping.ok) lines.push(`  read-only: ${sanitizeTerminalText(row.mapping.reason)}`);
 	return lines;
+}
+
+/**
+ * Everything the panel shows, from one snapshot. The heading numbers are OpenSpec's own, the same
+ * ones `/todos` reports, with incidental progress kept apart. Without a CLI read they fall back to
+ * the tracked rows.
+ */
+export function projectPanelModel(snapshot: Snapshot): PanelModel {
+	const state = projectPanelState(snapshot);
+	const linked = snapshot.linked;
+	const i = snapshot.implementation;
+	const incidental = snapshot.ordinary.filter((t) => t.status !== "deleted");
+	return {
+		state,
+		sections: {
+			openspec: { complete: i?.complete ?? linked.filter((r) => r.done).length, total: i?.total ?? linked.length, freshness: snapshot.freshness },
+			incidental: { complete: incidental.filter((t) => t.status === "completed").length, total: incidental.length },
+		},
+	};
 }
