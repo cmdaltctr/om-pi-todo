@@ -67,18 +67,27 @@ The panel sits above the editor. Its heading shows progress.
 
 Marks on the heading and rows:
 
-| You see                         | It means                                                                  |
-| ------------------------------- | ------------------------------------------------------------------------- |
-| `⚠ stale` or `⚠ unavailable`    | The OpenSpec view could not be read. Linked changes are off until it can. |
-| `↻`                             | A read is running. You see the last good view meanwhile.                  |
-| `Idle`                          | The agent finished its turn. The task is still open.                      |
-| `Paused`                        | You stopped the agent, or it hit an error. The task is still open.        |
-| `Blocked by #3`                 | Task 3 must finish first.                                                 |
-| `waiting: …` and `failed: …`    | The reasons the agent gave.                                               |
-| `+2 more (2 completed hidden)`  | Done rows are hidden. The count still includes them.                      |
-| `all completed (5 rows hidden)` | Every task is done.                                                       |
+| You see                                              | It means                                                                         |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `⚠ stale` or `⚠ unavailable`                         | The OpenSpec view could not be read. Linked changes are off until it can.        |
+| `↻`                                                  | A read is running. You see the last good view meanwhile.                         |
+| `Idle`                                               | The agent finished its turn. The task is still open.                             |
+| `Paused`                                             | You stopped the agent, or it hit an error. The task is still open.               |
+| `Blocked by #3`                                      | Task 3 must finish first.                                                        |
+| `waiting: …` and `failed: …`                         | The reasons the agent gave.                                                      |
+| `+2 more (2 completed hidden) · ctrl+o to show all`  | Rows are hidden. The count still includes them. Press the key to show every row. |
+| `all completed (5 rows hidden) · ctrl+o to show all` | Every task is done. Press the key to show them.                                  |
 
 A long row wraps onto the next lines under its own mark. Nothing is cut off.
+
+### Show every row
+
+The panel hides done rows from earlier turns and rows beyond the line budget. The last row says how many are hidden and names the key.
+
+1. Press `ctrl+o`. This is Pi's key for expanding tool output. The panel shows every row, including done ones.
+2. Press `ctrl+o` again to hide them.
+
+If you changed Pi's expand key, use your key. The hint text still says `ctrl+o`. Do not use `ctrl+e`: Pi uses it to move to the end of a line in the editor.
 
 ## Keeping statuses current
 

@@ -36,6 +36,8 @@ const WIDGET_KEY = "rpiv-todos";
 const OVERLAY_HEADING = "Todos";
 const OVERLAY_MORE = "more";
 const OVERLAY_EXPAND_HINT = "{key} to expand";
+// Pi's own key for expanding tool output. The panel follows it, so it is the key that shows every row.
+const OVERLAY_SHOW_ALL_HINT = "ctrl+o to show all";
 const OVERLAY_COLLAPSED = "collapsed";
 
 interface Snapshot {
@@ -187,8 +189,11 @@ export class TodoOverlay {
 		if (all.length === 0) return [];
 
 		// Everything below the heading works on the rows left after hiding; the heading and totals do not.
-		const hiddenByTurn = all.filter((task) => this.isHiddenCompleted(task)).length;
-		const overlayTasks = all.filter((task) => !this.isHiddenCompleted(task));
+		// Pi's global tool-output expansion mode is read on every render so its expand/collapse shortcut also
+		// expands this live widget. Optional chaining preserves compatibility with hosts predating it.
+		const expanded = this.uiCtx?.getToolsExpanded?.() === true;
+		const hiddenByTurn = expanded ? 0 : all.filter((task) => this.isHiddenCompleted(task)).length;
+		const overlayTasks = expanded ? all : all.filter((task) => !this.isHiddenCompleted(task));
 		const allState = { tasks: all, nextId: snapshot.nextId };
 
 		const truncate = (line: string): string => truncateToWidth(line, width, "…");
@@ -215,10 +220,8 @@ export class TodoOverlay {
 		// Every row is hidden because every task is completed: keep a compact summary.
 		if (overlayTasks.length === 0) {
 			const noun = hiddenByTurn === 1 ? "row" : "rows";
-			return this.withTrailingSpacer([
-				heading,
-				truncate(`${theme.fg("dim", "└─")} ${theme.fg("dim", `all completed (${hiddenByTurn} ${noun} hidden)`)}`),
-			]);
+			const text = `all completed (${hiddenByTurn} ${noun} hidden) · ${OVERLAY_SHOW_ALL_HINT}`;
+			return this.withTrailingSpacer([heading, truncate(`${theme.fg("dim", "└─")} ${theme.fg("dim", text)}`)]);
 		}
 
 		const lines: string[] = [heading];
@@ -226,9 +229,7 @@ export class TodoOverlay {
 		const showIds = selectShowTaskIds(allState);
 		const byId = new Map(all.map((task) => [task.id, task]));
 		const run = this.runState();
-		// Pi's global tool-output expansion mode is read on every render so its expand/collapse shortcut also
-		// expands this live widget. Optional chaining preserves compatibility with hosts predating it.
-		const bodyBudget = this.uiCtx?.getToolsExpanded?.() === true ? overlayTasks.length : getMaxWidgetLines() - 1;
+		const bodyBudget = expanded ? overlayTasks.length : getMaxWidgetLines() - 1;
 		const layout = selectOverlayLayout(overlayState, bodyBudget);
 		// Tree connectors take three columns. A long row wraps under its own connector, so a waiting or
 		// failure reason is never cut off. The last row closes the tree only when no summary row follows.
@@ -265,7 +266,9 @@ export class TodoOverlay {
 		if (layout.truncatedTail > 0) parts.push(`${layout.truncatedTail} pending`);
 		const more = t("overlay.more", OVERLAY_MORE);
 		lines.push(
-			truncate(`${theme.fg("dim", "└─")} ${theme.fg("dim", `+${totalHidden} ${more} (${parts.join(", ")})`)}`),
+			truncate(
+				`${theme.fg("dim", "└─")} ${theme.fg("dim", `+${totalHidden} ${more} (${parts.join(", ")}) · ${OVERLAY_SHOW_ALL_HINT}`)}`,
+			),
 		);
 		return this.withTrailingSpacer(lines);
 	}

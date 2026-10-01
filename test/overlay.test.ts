@@ -24,6 +24,7 @@ function build(initial: Task[], options: { sections?: PanelModel["sections"]; ru
 		sections: options.sections,
 	};
 	const run = { value: options.run ?? ("idle" as RunState) };
+	const expanded = { value: false };
 	const overlay = new TodoOverlay(
 		() => ({ state: model.state, sections: model.sections }),
 		() => run.value,
@@ -31,12 +32,22 @@ function build(initial: Task[], options: { sections?: PanelModel["sections"]; ru
 	let factory: any;
 	const requestRender = vi.fn();
 	const setWidget = vi.fn((_key: string, f: unknown) => void (factory = f));
-	overlay.setUICtx({ setWidget, theme, getToolsExpanded: () => false } as any);
+	overlay.setUICtx({ setWidget, theme, getToolsExpanded: () => expanded.value } as any);
 	const render = (width = 120): string[] =>
 		factory ? (factory({ requestRender }, theme).render(width) as string[]).filter((l) => l !== "") : [];
 	const set = (tasks: Task[], nextId?: number) =>
 		void (model.state = { tasks, nextId: nextId ?? tasks.reduce((m, t) => Math.max(m, t.id + 1), 1) });
-	return { overlay, model, run, render, set, setWidget, requestRender, registered: () => overlay.isRegistered() };
+	return {
+		overlay,
+		model,
+		run,
+		expanded,
+		render,
+		set,
+		setWidget,
+		requestRender,
+		registered: () => overlay.isRegistered(),
+	};
 }
 
 describe("heading counts every non-deleted task, before any row is hidden", () => {
@@ -56,7 +67,7 @@ describe("heading counts every non-deleted task, before any row is hidden", () =
 		expect(lines[0]).toBe("● Todos (2/5)");
 		expect(lines.join("\n")).not.toMatch(/Task [12]\b/);
 		expect(lines.join("\n")).toContain("Task 3");
-		expect(lines[lines.length - 1]).toBe("└─ +2 more (2 completed hidden)");
+		expect(lines[lines.length - 1]).toBe("└─ +2 more (2 completed hidden) · ctrl+o to show all");
 	});
 
 	it("matches the totals /todos reports", () => {
@@ -83,7 +94,7 @@ describe("heading counts every non-deleted task, before any row is hidden", () =
 		const t = build(tasks);
 		t.overlay.update();
 		const last = t.render().at(-1)!;
-		expect(last).toMatch(/^└─ \+\d+ more \(1 completed hidden, \d+ pending\)$/);
+		expect(last).toMatch(/^└─ \+\d+ more \(1 completed hidden, \d+ pending\) · ctrl\+o to show all$/);
 		expect(t.render()[0]).toBe("● Todos (1/15)");
 	});
 });
@@ -97,7 +108,7 @@ describe("an all-completed list keeps a compact summary", () => {
 		t.overlay.hideCompletedTasksFromPreviousTurn();
 		t.overlay.update();
 		expect(t.registered()).toBe(true);
-		expect(t.render()).toEqual(["○ Todos (3/3)", "└─ all completed (3 rows hidden)"]);
+		expect(t.render()).toEqual(["○ Todos (3/3)", "└─ all completed (3 rows hidden) · ctrl+o to show all"]);
 	});
 
 	it("does not disappear on later repaints or next turns", () => {
@@ -109,7 +120,7 @@ describe("an all-completed list keeps a compact summary", () => {
 			t.overlay.update();
 		}
 		expect(t.registered()).toBe(true);
-		expect(t.render()).toEqual(["○ Todos (1/1)", "└─ all completed (1 rows hidden)".replace("1 rows", "1 row")]);
+		expect(t.render()).toEqual(["○ Todos (1/1)", "└─ all completed (1 row hidden) · ctrl+o to show all"]);
 	});
 
 	it("goes away when the list is cleared", () => {
@@ -139,7 +150,7 @@ describe("an all-completed list keeps a compact summary", () => {
 		t.overlay.update();
 		t.render();
 		t.overlay.hideCompletedTasksFromPreviousTurn();
-		expect(t.render()).toEqual(["○ Todos (3/3)", "└─ all completed (3 rows hidden)"]);
+		expect(t.render()).toEqual(["○ Todos (3/3)", "└─ all completed (3 rows hidden) · ctrl+o to show all"]);
 		t.set([task(1, "completed")], 2); // a new list: its next id is lower
 		t.overlay.update();
 		expect(t.render().join("\n")).toContain("Task 1");
@@ -206,7 +217,7 @@ describe("sync mode headings keep OpenSpec and incidental progress apart", () =>
 		t.render();
 		t.overlay.hideCompletedTasksFromPreviousTurn();
 		expect(t.render()[0]).toBe("● Todos · OpenSpec 1/3 · incidental 1/2");
-		expect(t.render().at(-1)).toBe("└─ +2 more (2 completed hidden)");
+		expect(t.render().at(-1)).toBe("└─ +2 more (2 completed hidden) · ctrl+o to show all");
 	});
 });
 
@@ -356,5 +367,56 @@ describe("a long row wraps instead of being cut off", () => {
 		const second = lines.findIndex((l) => l.startsWith("├─") && l.includes("Task 2"));
 		expect(second).toBeGreaterThan(2);
 		expect(lines.slice(1, second).every((l, i) => (i === 0 ? l.startsWith("├─") : l.startsWith("│  ")))).toBe(true);
+	});
+});
+
+describe("hidden rows can always be shown", () => {
+	const hiddenList = () => {
+		const t = build([task(1, "completed"), task(2, "completed"), task(3, "pending"), task(4, "in_progress")]);
+		t.overlay.update();
+		t.render();
+		t.overlay.hideCompletedTasksFromPreviousTurn();
+		return t;
+	};
+
+	it("the summary row names the key that shows everything", () => {
+		const t = hiddenList();
+		expect(t.render().at(-1)).toBe("└─ +2 more (2 completed hidden) · ctrl+o to show all");
+	});
+
+	it("the key shows the completed rows hidden on an earlier turn, and the summary row goes", () => {
+		const t = hiddenList();
+		t.expanded.value = true;
+		const lines = t.render();
+		expect(lines).toHaveLength(5);
+		expect(lines.join("\n")).toMatch(/Task 1[\s\S]*Task 2[\s\S]*Task 3[\s\S]*Task 4/);
+		expect(lines.join("\n")).not.toContain("more");
+		expect(lines[0]).toBe("● Todos (2/4)");
+		expect(lines.at(-1)!.startsWith("└─")).toBe(true);
+	});
+
+	it("the key shows rows cut by the line budget", () => {
+		const many = Array.from({ length: 20 }, (_, i) => task(i + 1, "pending"));
+		const t = build(many);
+		t.overlay.update();
+		expect(t.render().at(-1)).toMatch(/^└─ \+\d+ more \(\d+ pending\) · ctrl\+o to show all$/);
+		t.expanded.value = true;
+		const lines = t.render();
+		expect(lines).toHaveLength(21);
+		expect(lines.join("\n")).toContain("Task 20");
+	});
+
+	it("hides the rows again when the key is pressed a second time", () => {
+		const t = hiddenList();
+		t.expanded.value = true;
+		t.render();
+		t.expanded.value = false;
+		expect(t.render().join("\n")).not.toMatch(/Task [12]\b/);
+	});
+
+	it("says nothing about a key when nothing is hidden", () => {
+		const t = build([task(1, "pending"), task(2, "in_progress")]);
+		t.overlay.update();
+		expect(t.render().join("\n")).not.toContain("ctrl+o");
 	});
 });

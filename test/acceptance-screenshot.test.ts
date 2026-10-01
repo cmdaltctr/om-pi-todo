@@ -56,7 +56,7 @@ describe("7.3 screenshot sequence, normal mode", () => {
 		const lines = t.render()!;
 		expect(lines[0]).toBe("● Todos (2/5)"); // the old panel read (0/3) here
 		expect(lines.join("\n")).not.toMatch(/Plan|Implement/); // the completed rows are hidden...
-		expect(lines.at(-1)).toBe("└─ +2 more (2 completed hidden)"); // ...and the panel says so
+		expect(lines.at(-1)).toBe("└─ +2 more (2 completed hidden) · ctrl+o to show all"); // ...and the panel says so
 		expect(rowFor(lines, "Get approval")).toContain("waiting: approval from the owner");
 		expect(rowFor(lines, "Get approval")).toContain("Idle");
 		expect(rowFor(lines, "Run review")).toContain("failed: review found 3 issues");
@@ -115,7 +115,7 @@ describe("7.3 screenshot sequence, OpenSpec sync mode", () => {
 		const lines = t.render()!;
 		expect(lines[0]).toBe("● Todos · OpenSpec 2/5");
 		expect(lines.join("\n")).not.toMatch(/1\.1 Plan|1\.2 Implement/);
-		expect(lines.at(-1)).toBe("└─ +2 more (2 completed hidden)");
+		expect(lines.at(-1)).toBe("└─ +2 more (2 completed hidden) · ctrl+o to show all");
 		expect(rowFor(lines, "1.3 Get approval")).toContain("waiting: approval from the owner");
 		expect(rowFor(lines, "1.3 Get approval")).toContain("Idle");
 		expect(rowFor(lines, "1.4 Run review")).toContain("failed: review found 3 issues");
