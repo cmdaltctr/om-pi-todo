@@ -26,7 +26,8 @@ const json = blocks.filter((b) => b.lang === "json");
 const parse = (text: string) => JSON.parse(text.startsWith("{") || text.startsWith("[") ? text : `[${text}]`);
 const isCall = (v: unknown): v is Record<string, any> => typeof v === "object" && v !== null && "action" in v;
 const calls = json.map((b) => parse(b.text)).filter(isCall);
-const REPO = "github.com/cmdaltctr/opinionated-modular-pi-todo-system-ompts";
+const REPO = "github.com/cmdaltctr/ompts-todo";
+const OLD_REPO_NAME = "opinionated-modular-pi-todo-system-ompts";
 
 describe("tool examples in the docs match the product", () => {
 	it("every JSON example parses", () => {
@@ -377,6 +378,43 @@ describe("the tooling section in the README matches the repository", () => {
 		}
 		for (const dev of ["oxlint", "oxfmt", "husky", "typescript", "vitest"])
 			expect(pkg.devDependencies[dev], dev).toBeDefined();
+	});
+});
+
+describe("the project is named the OMMS way", () => {
+	it("the README title spells out the acronym, as OMMS does", () => {
+		expect(readme.split("\n")[0]).toBe("# OMPTS: Opinionated Modular Pi Todo System");
+	});
+
+	it("the package and the repository describe it in the same words, and mention OpenSpec", () => {
+		expect(pkg.description).toBe("Opinionated modular todo system for Pi, with OpenSpec task sync");
+		expect(pkg.description).toMatch(/OpenSpec/);
+		expect(pkg.homepage).toBe(`https://${REPO}#readme`);
+		expect(pkg.bugs.url).toBe(`https://${REPO}/issues`);
+		expect(pkg.repository.url).toBe(`git+https://${REPO}.git`);
+	});
+
+	it("the old repository name appears nowhere in the project", () => {
+		for (const f of [
+			"README.md",
+			"AGENTS.md",
+			"CHANGELOG.md",
+			"package.json",
+			"bun.lock",
+			"docs/INSTALL.md",
+			"docs/UNINSTALL.md",
+			"docs/USAGE.md",
+			"docs/VERIFICATION.md",
+			".github/workflows/ci.yml",
+			".github/workflows/release.yml",
+		]) {
+			expect(read(f), f).not.toContain(OLD_REPO_NAME);
+		}
+	});
+
+	it("the uninstall guide shows the folder a clone creates", () => {
+		expect(uninstall).toContain("/full/path/to/ompts-todo");
+		expect(install).toContain("cd ompts-todo");
 	});
 });
 

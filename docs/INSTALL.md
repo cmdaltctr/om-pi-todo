@@ -38,7 +38,7 @@ Use this to try the newest code before a release.
 1. Run this command:
 
    ```sh
-   pi install git:github.com/cmdaltctr/opinionated-modular-pi-todo-system-ompts
+   pi install git:github.com/cmdaltctr/ompts-todo
    ```
 
 2. Pi adds the package to `packages` in `~/.pi/agent/settings.json`. For a folder path, Pi may store the path relative to that file. That is normal.
@@ -74,8 +74,8 @@ Use this when you want to edit the code.
 1. Clone the repository and install its tools:
 
    ```sh
-   git clone https://github.com/cmdaltctr/opinionated-modular-pi-todo-system-ompts.git
-   cd opinionated-modular-pi-todo-system-ompts
+   git clone https://github.com/cmdaltctr/ompts-todo.git
+   cd ompts-todo
    bun install
    bun run setup:host
    ```

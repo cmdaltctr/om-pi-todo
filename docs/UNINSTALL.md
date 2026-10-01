@@ -15,13 +15,13 @@ This guide removes the extension and puts Pi back as it was. Nothing is deleted 
    From GitHub:
 
    ```sh
-   pi remove git:github.com/cmdaltctr/opinionated-modular-pi-todo-system-ompts
+   pi remove git:github.com/cmdaltctr/ompts-todo
    ```
 
    From a local copy. Use the same full path you installed:
 
    ```sh
-   pi remove /full/path/to/opinionated-modular-pi-todo-system-ompts
+   pi remove /full/path/to/ompts-todo
    ```
 
 2. Run `pi list`. The package should be gone.

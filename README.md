@@ -1,4 +1,4 @@
-# Opinionated modular Pi todo system (OMPTS)
+# OMPTS: Opinionated Modular Pi Todo System
 
 A todo list for the [Pi](https://github.com/earendil-works/pi) coding agent. It has two modes.
 
@@ -116,7 +116,7 @@ No npm token is used. npm trusts the release workflow through OIDC. A trusted pu
 4. Add the npm trusted publisher. It needs npm 11.15 or later and asks for 2FA. The names must match exactly:
 
    ```sh
-   npm trust github pi-todo-openspec --file release.yml --repo cmdaltctr/opinionated-modular-pi-todo-system-ompts --env npm-publish --allow-stage-publish
+   npm trust github pi-todo-openspec --file release.yml --repo cmdaltctr/ompts-todo --env npm-publish --allow-stage-publish
    npm trust list pi-todo-openspec
    ```
 

@@ -2,7 +2,7 @@
 
 All notable changes are listed here. [Release Please](https://github.com/googleapis/release-please) writes this file from Conventional Commit messages when a release pull request is opened.
 
-## [0.1.0](https://github.com/cmdaltctr/opinionated-modular-pi-todo-system-ompts/releases/tag/v0.1.0) (2026-10-01)
+## [0.1.0](https://github.com/cmdaltctr/ompts-todo/releases/tag/v0.1.0) (2026-10-01)
 
 First release. It was published by hand, so later releases can use Release Please and npm trusted publishing.
 

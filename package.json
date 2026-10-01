@@ -1,23 +1,24 @@
 {
 	"name": "pi-todo-openspec",
 	"version": "0.1.0",
-	"description": "Pi todo extension with normal and OpenSpec sync modes. A local derivative of @juicesharp/rpiv-todo 2.11.0.",
+	"description": "Opinionated modular todo system for Pi, with OpenSpec task sync",
 	"keywords": [
-		"agent",
+		"ompts",
 		"openspec",
+		"opinionated",
 		"pi-extension",
 		"pi-package",
 		"todo"
 	],
-	"homepage": "https://github.com/cmdaltctr/opinionated-modular-pi-todo-system-ompts#readme",
+	"homepage": "https://github.com/cmdaltctr/ompts-todo#readme",
 	"bugs": {
-		"url": "https://github.com/cmdaltctr/opinionated-modular-pi-todo-system-ompts/issues"
+		"url": "https://github.com/cmdaltctr/ompts-todo/issues"
 	},
 	"license": "MIT",
 	"author": "Muhammad Aizat Md Hawari",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/cmdaltctr/opinionated-modular-pi-todo-system-ompts.git"
+		"url": "git+https://github.com/cmdaltctr/ompts-todo.git"
 	},
 	"files": [
 		"src",
