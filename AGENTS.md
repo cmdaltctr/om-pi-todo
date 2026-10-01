@@ -119,8 +119,10 @@ Test files group by area.
 - A Husky hook runs `bun run ci:clean` on `git push`. Do not use `--no-verify` unless the user asks.
 - GitHub Actions runs lint, types, tests and an audit on every push and pull request. All must pass.
 - Ask before you install a dependency, push, force-push, tag, publish, or delete files.
-- Release only through a version tag. The workflow `.github/workflows/release.yml` publishes to npm. Never run `npm publish` by hand.
-- Keep `CHANGELOG.md` in step with `version` in `package.json`. A test checks it.
+- Use Conventional Commit messages. Release Please reads them to pick the next version. A commit that is not in that style is ignored.
+- Never edit `version` in `package.json`, `CHANGELOG.md` or `.release-please-manifest.json` by hand. Release Please changes them in its release pull request.
+- Publish only through `.github/workflows/release.yml`. Never run `npm publish` or push a tag by hand.
+- Use squash merge for pull requests, and make the pull request title a Conventional Commit.
 - `npm pack --dry-run` must list only `src/`, the guides, `CHANGELOG.md`, `NOTICE.md`, `LICENSE`, `README.md` and `package.json`. A test checks it.
 
 ## Documentation

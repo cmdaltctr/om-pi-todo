@@ -189,7 +189,7 @@ describe("install and uninstall guides match the package", () => {
 		expect(readme).toContain(`pi install npm:${pkg.name}`);
 		expect(install).toContain(`pi install npm:${pkg.name}`);
 		expect(uninstall).toContain(`pi remove npm:${pkg.name}`);
-		expect(install).toContain(`pi install npm:${pkg.name}@${pkg.version}`);
+		expect(install).toMatch(new RegExp(`pi install npm:${pkg.name}@\\d+\\.\\d+\\.\\d+`));
 	});
 
 	it("the git install command is the same everywhere and matches package.json", () => {
@@ -294,15 +294,25 @@ describe("the local gate, the hook and CI run the same steps", () => {
 describe("the release steps in the README match the repository", () => {
 	const section = /## Release \(maintainers\)([\s\S]*?)## Tooling you can copy/.exec(readme)![1];
 
-	it("name the real package, workflow, secret and files", () => {
+	it("name the real package, workflow secret and tool", () => {
 		expect(section).toContain(pkg.name);
+		expect(section).toContain("Release Please");
 		expect(section).toContain("NPM_TOKEN");
 		expect(read(".github/workflows/release.yml")).toContain("secrets.NPM_TOKEN");
-		expect(section).toContain("CHANGELOG.md");
-		expect(existsSync(join(ROOT, "CHANGELOG.md"))).toBe(true);
-		expect(section).toContain("bun run ci:clean");
-		expect(section).toContain("npm pack --dry-run");
-		expect(section).toMatch(/git tag v\d+\.\d+\.\d+/);
+		expect(section).toContain("create and approve pull requests");
+		expect(read(".github/workflows/release.yml")).toContain("create and approve");
+	});
+
+	it("tell maintainers not to edit the files Release Please owns, and the agent guide agrees", () => {
+		expect(section).toContain("You never edit the version or the changelog by hand");
+		expect(read("AGENTS.md")).toContain("Never edit `version` in `package.json`");
+		expect(read("AGENTS.md")).toContain("Release Please");
+	});
+
+	it("the version table matches the config", () => {
+		const config = JSON.parse(read("release-please-config.json"));
+		expect(config["bump-minor-pre-major"]).toBe(true);
+		expect(section).toMatch(/`feat!:`[^|]*\|\s*Minor/);
 	});
 });
 

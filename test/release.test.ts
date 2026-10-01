@@ -18,11 +18,10 @@ function packedFiles(): string[] {
 }
 
 describe("the package is ready to publish", () => {
-	it("has a public name, a real version and is not private", () => {
+	it("has a public name, a semantic version and is not private", () => {
 		expect(pkg.name).toBe("pi-todo-openspec");
 		expect(pkg.private).toBeUndefined();
 		expect(pkg.version).toMatch(/^\d+\.\d+\.\d+$/);
-		expect(pkg.version).not.toBe("0.0.0");
 		expect(pkg.publishConfig).toEqual({ access: "public", provenance: true });
 		expect(pkg.license).toBe("MIT");
 	});
@@ -102,39 +101,85 @@ describe("the package is ready to publish", () => {
 		for (const range of Object.values(pkg.peerDependencies)) expect(range).toBe("*");
 	});
 
-	it("the changelog has an entry for the current version", () => {
+	it("the changelog exists, and has an entry for the current version once one is released", () => {
 		expect(existsSync(join(ROOT, "CHANGELOG.md"))).toBe(true);
-		expect(read("CHANGELOG.md")).toMatch(new RegExp(`^## ${pkg.version.replaceAll(".", "\\.")} `, "m"));
+		const baseline = JSON.parse(read(".release-please-manifest.json"))["."];
+		// Release Please writes the entry and bumps the version in one pull request.
+		if (pkg.version !== "0.0.0")
+			expect(read("CHANGELOG.md")).toMatch(new RegExp(`^## \\[?${pkg.version.replaceAll(".", "\\.")}\\]?[ (]`, "m"));
+		expect(baseline).toBe(pkg.version);
+	});
+});
+
+describe("Release Please is configured", () => {
+	const config = JSON.parse(read("release-please-config.json"));
+	const manifest = JSON.parse(read(".release-please-manifest.json"));
+
+	it("manages one root Node package, with tags like v0.1.0", () => {
+		expect(Object.keys(config.packages)).toEqual(["."]);
+		const root = config.packages["."];
+		expect(root["release-type"]).toBe("node");
+		expect(root["include-component-in-tag"]).toBe(false);
+		expect(root["changelog-path"] ?? "CHANGELOG.md").toBe("CHANGELOG.md");
+		expect(Object.keys(manifest)).toEqual(["."]);
+	});
+
+	it("never forces a version, which would block every later release", () => {
+		expect(JSON.stringify(config)).not.toContain("release-as");
+	});
+
+	it("does not bump the major version before 1.0.0 for a breaking change", () => {
+		expect(config["bump-minor-pre-major"]).toBe(true);
 	});
 });
 
 describe("the release workflow", () => {
 	const workflow = read(".github/workflows/release.yml");
 
-	it("runs only on a version tag, and publishes with provenance", () => {
-		expect(workflow).toMatch(/tags:\s*\n\s*- "v\*\.\*\.\*"/);
-		expect(workflow).not.toMatch(/branches:/);
-		expect(workflow).toContain("npm publish --provenance --access public");
-		expect(workflow).toContain("id-token: write");
-		expect(workflow).toContain("NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}");
+	it("runs on pushes to main only, and hands every release to Release Please", () => {
+		expect(workflow).toMatch(/branches:\s*\n\s*- main/);
+		expect(workflow).not.toMatch(/tags:/);
+		expect(workflow).toContain("googleapis/release-please-action@");
+		expect(workflow).toContain("release-please-config.json");
+		expect(workflow).toContain(".release-please-manifest.json");
 	});
 
-	it("refuses to publish when the tag and package.json disagree", () => {
-		expect(workflow).toContain("GITHUB_REF_NAME");
-		expect(workflow).toMatch(/package\.json/);
-		expect(workflow).toContain("exit 1");
+	it("gives each job only the permissions it needs", () => {
+		expect(workflow).not.toMatch(/^permissions:\s*\n\s+\S/m); // no workflow-wide grants
+		const rp = /release-please:[\s\S]*?publish:/.exec(workflow)![0];
+		expect(rp).toMatch(/contents: write/);
+		expect(rp).toMatch(/pull-requests: write/);
+		expect(rp).not.toContain("id-token");
+		const publish = /\n  publish:[\s\S]*$/.exec(workflow)![0];
+		expect(publish).toMatch(/contents: read/);
+		expect(publish).toContain("id-token: write");
+		expect(publish).not.toContain("contents: write");
 	});
 
-	it("runs the same gate as CI before it publishes", () => {
+	it("publishes only when a release was created, from the release tag", () => {
+		expect(workflow).toContain("needs: release-please");
+		expect(workflow).toMatch(/if: \$\{\{ needs\.release-please\.outputs\.release_created == 'true' \}\}/);
+		expect(workflow).toContain("ref: ${{ needs.release-please.outputs.tag_name }}");
+	});
+
+	it("refuses to publish a placeholder version or a tag that disagrees with package.json", () => {
+		expect(workflow).toContain("needs.release-please.outputs.tag_name");
+		expect(workflow).toMatch(/if \[ "\$\{version\}" = "0\.0\.0" \]; then\s*\n[^\n]*\n\s*exit 1/);
+		expect(workflow).toMatch(/if \[ "\$\{TAG\}" != "v\$\{version\}" \]; then\s*\n[^\n]*\n\s*exit 1/);
+	});
+
+	it("runs the same gate as CI before it publishes, with provenance", () => {
 		const gate = workflow.indexOf("bun run ci");
 		const publish = workflow.indexOf("npm publish");
 		expect(gate).toBeGreaterThan(-1);
 		expect(publish).toBeGreaterThan(gate);
 		expect(workflow).toContain("bun run setup:host");
 		expect(workflow).toContain("@fission-ai/openspec@1.13.1");
+		expect(workflow).toContain("npm publish --provenance --access public");
+		expect(workflow).toContain("NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}");
 	});
 
-	it("pins every action to a commit SHA, uses a registry URL and never echoes the token", () => {
+	it("pins every action to a commit SHA, uses the registry URL and never echoes the token", () => {
 		for (const m of workflow.matchAll(/uses:\s*(\S+)/g)) expect(m[1], m[1]).toMatch(/@[0-9a-f]{40}$/);
 		expect(workflow).toContain("registry-url: https://registry.npmjs.org");
 		expect(workflow).not.toMatch(/echo[^\n]*NPM_TOKEN/);

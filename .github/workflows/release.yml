@@ -1,16 +1,24 @@
 name: Release
 
-# Publishes to npm when you push a version tag such as v0.1.0.
-# One-time setup: add an npm automation token as the repository secret NPM_TOKEN.
+# How a release happens:
+#   1. You merge work to main with Conventional Commit messages (feat:, fix:, ...).
+#   2. Release Please opens or updates a release pull request. It bumps the version
+#      in package.json and writes CHANGELOG.md.
+#   3. You review and merge that pull request.
+#   4. Release Please tags the commit and creates a GitHub release.
+#   5. The publish job below tests the tag and publishes it to npm with provenance.
+#
+# One-time setup:
+#   - Add an npm automation token as the repository secret NPM_TOKEN.
+#   - Settings > Actions > General > "Allow GitHub Actions to create and approve
+#     pull requests" must be on.
 on:
   push:
-    tags:
-      - "v*.*.*"
+    branches:
+      - main
 
-# Provenance needs an OIDC token. Nothing here can write to the repository.
-permissions:
-  contents: read
-  id-token: write
+# Each job asks for its own permissions. Nothing is granted for the whole workflow.
+permissions: {}
 
 concurrency:
   group: release
@@ -20,13 +28,36 @@ env:
   HUSKY: "0"
 
 jobs:
+  release-please:
+    name: Release pull request
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - id: release
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
   publish:
     name: Test and publish
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write # npm provenance
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
           persist-credentials: false
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -38,12 +69,18 @@ jobs:
         with:
           bun-version: 1.4.2
 
-      # Stop a mismatch early: a tag must name the version in package.json.
-      - name: Check the tag matches package.json
+      # Stop early on a placeholder version, or a tag that does not name the version in package.json.
+      - name: Check the version
+        env:
+          TAG: ${{ needs.release-please.outputs.tag_name }}
         run: |
           version="$(node -p "require('./package.json').version")"
-          if [ "${GITHUB_REF_NAME}" != "v${version}" ]; then
-            echo "Tag ${GITHUB_REF_NAME} does not match package.json version ${version}."
+          if [ "${version}" = "0.0.0" ]; then
+            echo "package.json still has the placeholder version 0.0.0."
+            exit 1
+          fi
+          if [ "${TAG}" != "v${version}" ]; then
+            echo "Tag ${TAG} does not match package.json version ${version}."
             exit 1
           fi
 

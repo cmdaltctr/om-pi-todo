@@ -67,15 +67,31 @@ bun run ci           # format check, lint, type check and tests
 
 ## Release (maintainers)
 
-Releases go to npm as `pi-todo-openspec`. A version tag starts the release workflow.
+Releases go to npm as `pi-todo-openspec`. [Release Please](https://github.com/googleapis/release-please) prepares each one. You never edit the version or the changelog by hand.
 
-1. Update `version` in `package.json` and add a section for it to `CHANGELOG.md`.
-2. Run `bun run ci`, commit, then run `bun run ci:clean`.
-3. Check the package contents with `npm pack --dry-run`.
-4. Tag and push: `git tag v0.1.0 && git push origin main v0.1.0`. Use your version number.
-5. Watch the run in the Actions tab. It refuses to publish when the tag and `package.json` disagree. It publishes with provenance after the full gate passes.
+1. Write commits and pull request titles in the [Conventional Commits](https://www.conventionalcommits.org) style: `feat:`, `fix:`, `perf:`, `docs:`. Add `!` for a breaking change, for example `feat!:`.
+2. Merge to `main`. Release Please opens or updates a pull request called "chore(main): release X.Y.Z". It bumps `version` in `package.json` and writes `CHANGELOG.md`.
+3. Read that pull request. Check the version and the changelog text.
+4. Merge it. Release Please tags the commit and creates a GitHub release.
+5. The publish job runs the full gate on the tag, then publishes to npm with provenance. Watch it in the Actions tab.
 
-One-time setup: create an npm automation token and add it to the repository as the secret `NPM_TOKEN`. After the first release, switch to npm trusted publishing and delete the token.
+What each commit type does before version 1.0.0:
+
+| Commit                                      | Version change                    |
+| ------------------------------------------- | --------------------------------- |
+| `fix:`, `perf:`                             | Patch, for example 0.1.0 to 0.1.1 |
+| `feat:`                                     | Minor, for example 0.1.0 to 0.2.0 |
+| `feat!:` or a `BREAKING CHANGE:` footer     | Minor. After 1.0.0 it is major.   |
+| `docs:`, `style:`, `test:`, `chore:`, `ci:` | No release                        |
+
+One-time setup:
+
+1. Add an npm automation token as the repository secret `NPM_TOKEN`.
+2. In the repository, open Settings, Actions, General. Turn on "Allow GitHub Actions to create and approve pull requests".
+
+After the first release, switch to npm trusted publishing and delete the token.
+
+The release pull request is opened by a bot, and GitHub does not start the normal CI run for it. The publish job runs the full gate again before it publishes, so a broken release cannot reach npm.
 
 ## Tooling you can copy
 
