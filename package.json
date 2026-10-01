@@ -1,9 +1,9 @@
 {
-	"name": "opinionated-modular-pi-todo-system-ompts",
-	"version": "0.0.0",
-	"private": true,
+	"name": "pi-todo-openspec",
+	"version": "0.1.0",
 	"description": "Pi todo extension with normal and OpenSpec sync modes. A local derivative of @juicesharp/rpiv-todo 2.11.0.",
 	"keywords": [
+		"agent",
 		"openspec",
 		"pi-extension",
 		"pi-package",
@@ -19,7 +19,20 @@
 		"type": "git",
 		"url": "git+https://github.com/cmdaltctr/opinionated-modular-pi-todo-system-ompts.git"
 	},
+	"files": [
+		"src",
+		"docs/INSTALL.md",
+		"docs/USAGE.md",
+		"docs/UNINSTALL.md",
+		"docs/VERIFICATION.md",
+		"CHANGELOG.md",
+		"NOTICE.md"
+	],
 	"type": "module",
+	"publishConfig": {
+		"access": "public",
+		"provenance": true
+	},
 	"scripts": {
 		"setup:host": "./scripts/setup-host.sh",
 		"format": "oxfmt --write",

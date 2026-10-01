@@ -16,10 +16,10 @@ A todo list for the [Pi](https://github.com/earendil-works/pi) coding agent. It 
 ## Install
 
 ```sh
-pi install git:github.com/cmdaltctr/opinionated-modular-pi-todo-system-ompts
+pi install npm:pi-todo-openspec
 ```
 
-Then run `/reload` in Pi. If you already use `@juicesharp/rpiv-todo`, read the install guide first. Both register a `todo` tool, so you must disable one.
+Then run `/reload` in Pi. To install from GitHub instead, see the install guide. If you already use `@juicesharp/rpiv-todo`, read the install guide first. Both register a `todo` tool, so you must disable one.
 
 ## Tell your agent how to use it
 
@@ -64,6 +64,18 @@ bun run ci           # format check, lint, type check and tests
 - `git push` runs `bun run ci:clean` first, through a Husky hook. Skip it once with `git push --no-verify`.
 - GitHub Actions runs the same steps on every push and pull request.
 - Contributor notes for agents are in [AGENTS.md](AGENTS.md).
+
+## Release (maintainers)
+
+Releases go to npm as `pi-todo-openspec`. A version tag starts the release workflow.
+
+1. Update `version` in `package.json` and add a section for it to `CHANGELOG.md`.
+2. Run `bun run ci`, commit, then run `bun run ci:clean`.
+3. Check the package contents with `npm pack --dry-run`.
+4. Tag and push: `git tag v0.1.0 && git push origin main v0.1.0`. Use your version number.
+5. Watch the run in the Actions tab. It refuses to publish when the tag and `package.json` disagree. It publishes with provenance after the full gate passes.
+
+One-time setup: create an npm automation token and add it to the repository as the secret `NPM_TOKEN`. After the first release, switch to npm trusted publishing and delete the token.
 
 ## Tooling you can copy
 

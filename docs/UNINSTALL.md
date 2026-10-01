@@ -6,6 +6,12 @@ This guide removes the extension and puts Pi back as it was. Nothing is deleted 
 
 1. Run the command that matches how you installed it.
 
+   From npm:
+
+   ```sh
+   pi remove npm:pi-todo-openspec
+   ```
+
    From GitHub:
 
    ```sh

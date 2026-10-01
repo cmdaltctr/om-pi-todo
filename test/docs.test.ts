@@ -185,10 +185,17 @@ describe("the agent snippet in the README is accurate", () => {
 });
 
 describe("install and uninstall guides match the package", () => {
+	it("the npm install and remove commands name the published package, in every guide", () => {
+		expect(readme).toContain(`pi install npm:${pkg.name}`);
+		expect(install).toContain(`pi install npm:${pkg.name}`);
+		expect(uninstall).toContain(`pi remove npm:${pkg.name}`);
+		expect(install).toContain(`pi install npm:${pkg.name}@${pkg.version}`);
+	});
+
 	it("the git install command is the same everywhere and matches package.json", () => {
 		const command = `pi install git:${REPO}`;
-		expect(readme).toContain(command);
 		expect(install).toContain(command);
+		expect(readme).toContain("(docs/INSTALL.md)"); // the README sends GitHub installs to the guide
 		expect(uninstall).toContain(`pi remove git:${REPO}`);
 		expect(pkg.repository.url).toBe(`git+https://${REPO}.git`);
 		expect(install).toContain(`git clone https://${REPO}.git`);
@@ -281,6 +288,21 @@ describe("the local gate, the hook and CI run the same steps", () => {
 
 	it("the hook is installed through a prepare script that cannot break a plain install", () => {
 		expect(pkg.scripts.prepare).toBe("husky || true");
+	});
+});
+
+describe("the release steps in the README match the repository", () => {
+	const section = /## Release \(maintainers\)([\s\S]*?)## Tooling you can copy/.exec(readme)![1];
+
+	it("name the real package, workflow, secret and files", () => {
+		expect(section).toContain(pkg.name);
+		expect(section).toContain("NPM_TOKEN");
+		expect(read(".github/workflows/release.yml")).toContain("secrets.NPM_TOKEN");
+		expect(section).toContain("CHANGELOG.md");
+		expect(existsSync(join(ROOT, "CHANGELOG.md"))).toBe(true);
+		expect(section).toContain("bun run ci:clean");
+		expect(section).toContain("npm pack --dry-run");
+		expect(section).toMatch(/git tag v\d+\.\d+\.\d+/);
 	});
 });
 

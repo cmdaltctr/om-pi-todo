@@ -10,20 +10,42 @@ You need:
 - Node.js 22 or newer.
 - The `openspec` command, only if you want sync mode. Check with `openspec --version`.
 
-## Install from GitHub (recommended)
+## Install from npm (recommended)
 
 1. Run this command in a terminal:
+
+   ```sh
+   pi install npm:pi-todo-openspec
+   ```
+
+2. Pi adds the package to `packages` in `~/.pi/agent/settings.json`.
+3. Handle `rpiv-todo` if you use it. See the section below.
+4. Open Pi, or run `/reload` in a Pi session that is already open.
+5. Check that it works. Run `/todo-settings`. A menu titled "Todo settings" should open.
+
+To install a fixed version, add it after the name:
+
+```sh
+pi install npm:pi-todo-openspec@0.1.0
+```
+
+To update later, run `pi update`.
+
+## Install from GitHub
+
+Use this to try the newest code before a release.
+
+1. Run this command:
 
    ```sh
    pi install git:github.com/cmdaltctr/opinionated-modular-pi-todo-system-ompts
    ```
 
 2. Pi adds the package to `packages` in `~/.pi/agent/settings.json`. For a folder path, Pi may store the path relative to that file. That is normal.
-3. Handle `rpiv-todo` if you use it. See the next section.
-4. Open Pi, or run `/reload` in a Pi session that is already open.
-5. Check that it works. Run `/todo-settings`. A menu titled "Todo settings" should open.
+3. Handle `rpiv-todo` if you use it. See the section below.
+4. Run `/reload`, then `/todo-settings` to check it works.
 
-To install a fixed release, add a tag or commit at the end, for example `...-ompts@v1.0.0`.
+To install a fixed release, add a tag or commit at the end, for example `...-ompts@v0.1.0`.
 
 ## If you use rpiv-todo
 

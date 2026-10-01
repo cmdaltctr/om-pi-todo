@@ -118,7 +118,10 @@ Test files group by area.
 - Run `git pull --rebase` before you push.
 - A Husky hook runs `bun run ci:clean` on `git push`. Do not use `--no-verify` unless the user asks.
 - GitHub Actions runs lint, types, tests and an audit on every push and pull request. All must pass.
-- Ask before you install a dependency, push, force-push, or delete files.
+- Ask before you install a dependency, push, force-push, tag, publish, or delete files.
+- Release only through a version tag. The workflow `.github/workflows/release.yml` publishes to npm. Never run `npm publish` by hand.
+- Keep `CHANGELOG.md` in step with `version` in `package.json`. A test checks it.
+- `npm pack --dry-run` must list only `src/`, the guides, `CHANGELOG.md`, `NOTICE.md`, `LICENSE`, `README.md` and `package.json`. A test checks it.
 
 ## Documentation
 
