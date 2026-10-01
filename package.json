@@ -36,6 +36,7 @@
     "test": "vitest run",
     "audit": "bun audit",
     "ci": "bun run lint && bun run typecheck && bun run test",
+    "ci:clean": "./scripts/ci-clean.sh",
     "prepare": "husky || true"
   },
   "peerDependencies": {
