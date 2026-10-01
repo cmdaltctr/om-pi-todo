@@ -65,6 +65,30 @@ bun run ci           # format check, lint, type check and tests
 - GitHub Actions runs the same steps on every push and pull request.
 - Contributor notes for agents are in [AGENTS.md](AGENTS.md).
 
+## Tooling you can copy
+
+If you fork this project or start a similar Pi extension, set up the same checks. Each row says what it is for.
+
+| Tool                                               | What it does                                                                           | Where it is configured      |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------- | --------------------------- |
+| [Bun](https://bun.sh)                              | Installs packages and runs scripts.                                                    | `package.json`, `bun.lock`  |
+| [Oxlint](https://oxc.rs/docs/guide/usage/linter)   | Finds bugs. Warnings fail the run.                                                     | `.oxlintrc.json`            |
+| [Oxfmt](https://oxc.rs/docs/guide/usage/formatter) | Formats code and docs. It is separate from Oxlint.                                     | `.oxfmtrc.json`             |
+| `tsc` (TypeScript, strict)                         | Checks types.                                                                          | `tsconfig.json`             |
+| [Vitest](https://vitest.dev)                       | Runs the tests.                                                                        | `vitest.config.ts`          |
+| [Husky](https://typicode.github.io/husky)          | Runs a check before each `git push`.                                                   | `.husky/pre-push`           |
+| `scripts/ci-clean.sh`                              | Runs the gate on a fresh clone of your last commit, as CI does.                        | `package.json` (`ci:clean`) |
+| GitHub Actions                                     | Runs format, lint, types, tests and a dependency audit on every push and pull request. | `.github/workflows/ci.yml`  |
+| `bun audit`                                        | Looks for known vulnerable dependencies.                                               | `package.json` (`audit`)    |
+
+Three details that are easy to miss:
+
+- **Pi host packages.** Pi supplies `@earendil-works/*` and `typebox`. List them as `peerDependencies`. Add `peer = false` to `bunfig.toml`, or `bun install` will copy them into `node_modules` and a Pi packaging check will complain. `scripts/setup-host.sh` fetches them into `.pi-host/` for tests and type checks, so no path on your machine is hard-coded.
+- **Pin actions.** Every action in the workflow uses a full commit SHA, not a tag.
+- **Test a clean clone.** `bun run ci` can pass in your folder and fail in CI. `bun run ci:clean` removes that gap.
+
+To set the same tooling up in another repo with an agent, use [the setup prompt](docs/SETUP-PROMPT.md).
+
 ## Licence and credit
 
 MIT. See [LICENSE](LICENSE).

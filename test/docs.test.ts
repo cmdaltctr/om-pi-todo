@@ -284,6 +284,88 @@ describe("the local gate, the hook and CI run the same steps", () => {
 	});
 });
 
+describe("the tooling section in the README matches the repository", () => {
+	const section = /## Tooling you can copy([\s\S]*?)## Licence/.exec(readme)![1];
+
+	it("every file it names exists", () => {
+		for (const file of [
+			".oxlintrc.json",
+			".oxfmtrc.json",
+			"tsconfig.json",
+			"vitest.config.ts",
+			".husky/pre-push",
+			"scripts/ci-clean.sh",
+			"scripts/setup-host.sh",
+			".github/workflows/ci.yml",
+			"bunfig.toml",
+			"bun.lock",
+			"docs/SETUP-PROMPT.md",
+		]) {
+			expect(section, file).toContain(file);
+			expect(existsSync(join(ROOT, file)), file).toBe(true);
+		}
+	});
+
+	it("every script it names is a package script, and each tool it names is installed", () => {
+		for (const script of ["ci:clean", "audit"]) {
+			expect(section).toContain(`\`${script}\``);
+			expect(pkg.scripts[script], script).toBeDefined();
+		}
+		for (const dev of ["oxlint", "oxfmt", "husky", "typescript", "vitest"])
+			expect(pkg.devDependencies[dev], dev).toBeDefined();
+	});
+});
+
+describe("the setup prompt matches the repository", () => {
+	const prompt = read("docs/SETUP-PROMPT.md");
+
+	it("names the scripts and files this repository really has", () => {
+		for (const name of [
+			"format:check",
+			"lint:fix",
+			"ci:clean",
+			"setup-host.sh",
+			"ci-clean.sh",
+			".oxlintrc.json",
+			".oxfmtrc.json",
+			"bunfig.toml",
+			".husky/pre-push",
+		]) {
+			expect(prompt, name).toContain(name);
+		}
+		for (const script of [
+			"format",
+			"format:check",
+			"lint",
+			"lint:fix",
+			"typecheck",
+			"test",
+			"audit",
+			"ci",
+			"ci:clean",
+			"prepare",
+		]) {
+			expect(pkg.scripts[script], script).toBeDefined();
+			expect(prompt, script).toContain(script);
+		}
+		expect(prompt).toContain("oxlint --deny-warnings");
+		expect(pkg.scripts.lint).toBe("oxlint --deny-warnings");
+		expect(prompt).toContain("husky || true");
+		expect(pkg.scripts.prepare).toBe("husky || true");
+	});
+
+	it("tells the agent not to leak personal data or push without asking", () => {
+		expect(prompt).toMatch(/Do not push or create a remote unless I say so/);
+		expect(prompt).toMatch(/no home paths/);
+		expect(prompt).toContain("users.noreply.github.com");
+	});
+
+	it("is in the README link and carries no real personal data itself", () => {
+		expect(readme).toContain("(docs/SETUP-PROMPT.md)");
+		expect(prompt).not.toMatch(/aizat|gmail|\/Users\/[a-z]/i);
+	});
+});
+
 describe("the repository holds nothing personal", () => {
 	it("no tracked doc, config or script names a home directory", () => {
 		const files = [
