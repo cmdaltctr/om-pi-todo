@@ -127,7 +127,9 @@ describe("coalescer", () => {
 	});
 });
 
-describe("file watcher", () => {
+// Real file-system events can arrive late on a busy machine. The wait inside each test is 10 s,
+// so the test timeout must be longer than that, or the wait can never help.
+describe("file watcher", { timeout: 30_000 }, () => {
 	let dir = "";
 	let file = "";
 	beforeEach(() => {

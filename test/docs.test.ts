@@ -293,20 +293,42 @@ describe("the local gate, the hook and CI run the same steps", () => {
 
 describe("the release steps in the README match the repository", () => {
 	const section = /## Release \(maintainers\)([\s\S]*?)## Tooling you can copy/.exec(readme)![1];
+	const workflow = read(".github/workflows/release.yml");
 
-	it("name the real package, workflow secret and tool", () => {
+	it("name the real package and the commands the maintainer runs", () => {
 		expect(section).toContain(pkg.name);
 		expect(section).toContain("Release Please");
-		expect(section).toContain("NPM_TOKEN");
-		expect(read(".github/workflows/release.yml")).toContain("secrets.NPM_TOKEN");
-		expect(section).toContain("create and approve pull requests");
-		expect(read(".github/workflows/release.yml")).toContain("create and approve");
+		expect(section).toContain("npm stage list pi-todo-openspec");
+		expect(section).toContain("npm stage approve <stage-id>");
+		expect(workflow).toContain("npm stage publish");
+		expect(workflow).toContain("npm stage approve");
+	});
+
+	it("use the same names for secrets, variable, environment and workflow as the workflow does", () => {
+		for (const name of ["RELEASE_APP_ID", "RELEASE_APP_PRIVATE_KEY"]) {
+			expect(section, name).toContain(name);
+			expect(workflow, name).toContain(`secrets.${name}`);
+		}
+		expect(section).toContain("RELEASE_PLEASE_ENABLED");
+		expect(workflow).toContain("vars.RELEASE_PLEASE_ENABLED");
+		expect(section).toContain("--env npm-publish");
+		expect(workflow).toContain("environment: npm-publish");
+		expect(section).toContain("--file release.yml");
+		expect(section).toContain(`--repo ${REPO.replace("github.com/", "")}`);
+		expect(section).toContain("--allow-stage-publish");
+	});
+
+	it("say there is no npm token, and the workflow has none", () => {
+		expect(section).toContain("No npm token is used");
+		expect(section).not.toContain("NPM_TOKEN");
+		expect(workflow).not.toMatch(/NPM_TOKEN|NODE_AUTH_TOKEN/);
+		expect(read("AGENTS.md")).toContain("There is no npm token");
 	});
 
 	it("tell maintainers not to edit the files Release Please owns, and the agent guide agrees", () => {
 		expect(section).toContain("You never edit the version or the changelog by hand");
 		expect(read("AGENTS.md")).toContain("Never edit `version` in `package.json`");
-		expect(read("AGENTS.md")).toContain("Release Please");
+		expect(read("AGENTS.md")).toContain("Never run `npm publish`");
 	});
 
 	it("the version table matches the config", () => {

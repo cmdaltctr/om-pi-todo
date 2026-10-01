@@ -121,7 +121,8 @@ Test files group by area.
 - Ask before you install a dependency, push, force-push, tag, publish, or delete files.
 - Use Conventional Commit messages. Release Please reads them to pick the next version. A commit that is not in that style is ignored.
 - Never edit `version` in `package.json`, `CHANGELOG.md` or `.release-please-manifest.json` by hand. Release Please changes them in its release pull request.
-- Publish only through `.github/workflows/release.yml`. Never run `npm publish` or push a tag by hand.
+- Publish only through `.github/workflows/release.yml`. It stages the version on npm. Never run `npm publish`, `npm stage approve` or `npm stage reject`, and never push a tag by hand. The maintainer approves each staged version with 2FA.
+- There is no npm token. Do not create or ask for one. A failing publish with `ENEEDAUTH` means the trusted publisher setting on npm does not match.
 - Use squash merge for pull requests, and make the pull request title a Conventional Commit.
 - `npm pack --dry-run` must list only `src/`, the guides, `CHANGELOG.md`, `NOTICE.md`, `LICENSE`, `README.md` and `package.json`. A test checks it.
 

@@ -71,9 +71,17 @@ Releases go to npm as `pi-todo-openspec`. [Release Please](https://github.com/go
 
 1. Write commits and pull request titles in the [Conventional Commits](https://www.conventionalcommits.org) style: `feat:`, `fix:`, `perf:`, `docs:`. Add `!` for a breaking change, for example `feat!:`.
 2. Merge to `main`. Release Please opens or updates a pull request called "chore(main): release X.Y.Z". It bumps `version` in `package.json` and writes `CHANGELOG.md`.
-3. Read that pull request. Check the version and the changelog text.
+3. Read that pull request. Check the version and the changelog text. Its CI checks run.
 4. Merge it. Release Please tags the commit and creates a GitHub release.
-5. The publish job runs the full gate on the tag, then publishes to npm with provenance. Watch it in the Actions tab.
+5. The publish job runs the full gate on that exact commit, then **stages** the version on npm. It is not installable yet. The job adds the approval steps to the GitHub release.
+6. Approve it with two-factor authentication:
+
+   ```sh
+   npm stage list pi-todo-openspec
+   npm stage approve <stage-id>
+   ```
+
+   You can also use the Staged tab at https://www.npmjs.com/package/pi-todo-openspec. To reject a version, run `npm stage reject <stage-id>`.
 
 What each commit type does before version 1.0.0:
 
@@ -84,14 +92,47 @@ What each commit type does before version 1.0.0:
 | `feat!:` or a `BREAKING CHANGE:` footer     | Minor. After 1.0.0 it is major.   |
 | `docs:`, `style:`, `test:`, `chore:`, `ci:` | No release                        |
 
-One-time setup:
+### One-time setup
 
-1. Add an npm automation token as the repository secret `NPM_TOKEN`.
-2. In the repository, open Settings, Actions, General. Turn on "Allow GitHub Actions to create and approve pull requests".
+No npm token is used. npm trusts the release workflow through OIDC. A trusted publisher can only be added to a package that already exists, so publish the first version by hand.
 
-After the first release, switch to npm trusted publishing and delete the token.
+1. Publish the first version by hand, then tag it and create its GitHub release, so Release Please counts from it:
 
-The release pull request is opened by a bot, and GitHub does not start the normal CI run for it. The publish job runs the full gate again before it publishes, so a broken release cannot reach npm.
+   ```sh
+   npm login
+   npm publish --provenance=false --access public --ignore-scripts
+   git tag v0.1.0 && git push origin v0.1.0
+   gh release create v0.1.0 --title v0.1.0 --notes-file CHANGELOG.md
+   ```
+
+2. Create a private GitHub App with no webhook. Give it read and write access to Contents and Pull requests. Install it on this repository only. Generate a private key. Save these repository secrets:
+
+   ```sh
+   gh secret set RELEASE_APP_ID
+   gh secret set RELEASE_APP_PRIVATE_KEY < path/to/private-key.pem
+   ```
+
+3. Create the environment `npm-publish`, limited to the `main` branch. In GitHub, open Settings, Environments.
+4. Add the npm trusted publisher. It needs npm 11.15 or later and asks for 2FA. The names must match exactly:
+
+   ```sh
+   npm trust github pi-todo-openspec --file release.yml --repo cmdaltctr/opinionated-modular-pi-todo-system-ompts --env npm-publish --allow-stage-publish
+   npm trust list pi-todo-openspec
+   ```
+
+   `--allow-stage-publish` lets the workflow stage a version but not release it. You still approve every release.
+
+5. Turn the workflow on:
+
+   ```sh
+   gh variable set RELEASE_PLEASE_ENABLED --body true
+   ```
+
+If the publish job fails with `ENEEDAUTH`, the workflow file name, the environment name or the repository in step 4 does not match npm's record. Nothing is published. Fix the setting and run the job again.
+
+After the first staged release is approved and shows a provenance badge, open the package settings on npmjs.com and choose "Require two-factor authentication and disallow tokens".
+
+If the smoke or gate step fails, nothing is staged. The tag and GitHub release already exist. Push a `fix:` commit. Release Please then proposes the next patch version.
 
 ## Tooling you can copy
 

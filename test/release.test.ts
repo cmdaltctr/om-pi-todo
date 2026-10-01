@@ -135,6 +135,8 @@ describe("Release Please is configured", () => {
 
 describe("the release workflow", () => {
 	const workflow = read(".github/workflows/release.yml");
+	const releaseJob = /\n  release-please:[\s\S]*?\n  publish:/.exec(workflow)![0];
+	const publishJob = /\n  publish:[\s\S]*$/.exec(workflow)![0];
 
 	it("runs on pushes to main only, and hands every release to Release Please", () => {
 		expect(workflow).toMatch(/branches:\s*\n\s*- main/);
@@ -144,45 +146,71 @@ describe("the release workflow", () => {
 		expect(workflow).toContain(".release-please-manifest.json");
 	});
 
-	it("gives each job only the permissions it needs", () => {
-		expect(workflow).not.toMatch(/^permissions:\s*\n\s+\S/m); // no workflow-wide grants
-		const rp = /release-please:[\s\S]*?publish:/.exec(workflow)![0];
-		expect(rp).toMatch(/contents: write/);
-		expect(rp).toMatch(/pull-requests: write/);
-		expect(rp).not.toContain("id-token");
-		const publish = /\n  publish:[\s\S]*$/.exec(workflow)![0];
-		expect(publish).toMatch(/contents: read/);
-		expect(publish).toContain("id-token: write");
-		expect(publish).not.toContain("contents: write");
+	it("stays off until the repository variable switches it on, so a missing secret cannot fail every push", () => {
+		expect(releaseJob).toContain("if: ${{ vars.RELEASE_PLEASE_ENABLED == 'true' }}");
 	});
 
-	it("publishes only when a release was created, from the release tag", () => {
-		expect(workflow).toContain("needs: release-please");
-		expect(workflow).toMatch(/if: \$\{\{ needs\.release-please\.outputs\.release_created == 'true' \}\}/);
-		expect(workflow).toContain("ref: ${{ needs.release-please.outputs.tag_name }}");
+	it("signs in as the release GitHub App, so release pull requests start the CI checks", () => {
+		expect(releaseJob).toContain("actions/create-github-app-token@");
+		expect(releaseJob).toContain("client-id: ${{ secrets.RELEASE_APP_ID }}");
+		expect(releaseJob).toContain("private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}");
+		expect(releaseJob).toContain("token: ${{ steps.app-token.outputs.token }}");
 	});
 
-	it("refuses to publish a placeholder version or a tag that disagrees with package.json", () => {
-		expect(workflow).toContain("needs.release-please.outputs.tag_name");
-		expect(workflow).toMatch(/if \[ "\$\{version\}" = "0\.0\.0" \]; then\s*\n[^\n]*\n\s*exit 1/);
-		expect(workflow).toMatch(/if \[ "\$\{TAG\}" != "v\$\{version\}" \]; then\s*\n[^\n]*\n\s*exit 1/);
+	it("uses no npm token anywhere", () => {
+		expect(workflow).not.toMatch(/NPM_TOKEN|NODE_AUTH_TOKEN/);
+		expect(workflow).not.toMatch(/secrets\.NPM/);
 	});
 
-	it("runs the same gate as CI before it publishes, with provenance", () => {
-		const gate = workflow.indexOf("bun run ci");
-		const publish = workflow.indexOf("npm publish");
+	it("gives each job only the permissions it needs, and none for the whole workflow", () => {
+		expect(workflow).toMatch(/^permissions:\s*\n\s+contents: read\s*$/m);
+		expect(releaseJob).not.toMatch(/write/);
+		expect(releaseJob).not.toContain("id-token");
+		expect(publishJob).toContain("contents: write"); // to add the approval note to the GitHub Release
+		expect(publishJob).toContain("id-token: write"); // npm trusted publishing (OIDC)
+		expect(publishJob).not.toMatch(/pull-requests|packages: write|actions: write/);
+	});
+
+	it("publishes only when a release was created, in the protected npm-publish environment", () => {
+		expect(publishJob).toContain("needs: release-please");
+		expect(publishJob).toMatch(/if: \$\{\{ needs\.release-please\.outputs\.release_created == 'true' \}\}/);
+		expect(publishJob).toContain("environment: npm-publish");
+	});
+
+	it("builds exactly the release commit, not whatever main has become", () => {
+		expect(releaseJob).toContain("sha: ${{ steps.release.outputs.sha }}");
+		expect(publishJob).toContain("ref: ${{ needs.release-please.outputs.sha }}");
+		expect(publishJob).not.toContain("ref: main");
+	});
+
+	it("stages the version on npm for approval, never publishing it directly", () => {
+		expect(publishJob).toContain("npm stage publish --access public");
+		expect(workflow).not.toMatch(/npm publish/);
+		expect(publishJob).toContain("npm install -g npm@^11.15.0");
+		expect(publishJob).toContain("2FA");
+		expect(publishJob).toContain("npm stage approve");
+	});
+
+	it("refuses a placeholder version or a version that disagrees with the release", () => {
+		expect(publishJob).toMatch(/if \[ "\$\{PACKAGE_VERSION\}" = "0\.0\.0" \]; then\s*\n[^\n]*\n\s*exit 1/);
+		expect(publishJob).toMatch(
+			/if \[ "\$\{PACKAGE_VERSION\}" != "\$\{RELEASE_VERSION\}" \]; then\s*\n[^\n]*\n\s*exit 1/,
+		);
+		expect(publishJob).toContain("RELEASE_VERSION: ${{ needs.release-please.outputs.version }}");
+	});
+
+	it("runs the same gate as CI before it stages anything", () => {
+		const gate = publishJob.indexOf("bun run ci");
+		const stage = publishJob.indexOf("npm stage publish");
 		expect(gate).toBeGreaterThan(-1);
-		expect(publish).toBeGreaterThan(gate);
-		expect(workflow).toContain("bun run setup:host");
-		expect(workflow).toContain("@fission-ai/openspec@1.13.1");
-		expect(workflow).toContain("npm publish --provenance --access public");
-		expect(workflow).toContain("NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}");
+		expect(stage).toBeGreaterThan(gate);
+		expect(publishJob).toContain("bun run setup:host");
+		expect(publishJob).toContain("@fission-ai/openspec@1.13.1");
 	});
 
-	it("pins every action to a commit SHA, uses the registry URL and never echoes the token", () => {
+	it("pins every action to a commit SHA, uses the registry URL and keeps no credentials on disk", () => {
 		for (const m of workflow.matchAll(/uses:\s*(\S+)/g)) expect(m[1], m[1]).toMatch(/@[0-9a-f]{40}$/);
 		expect(workflow).toContain("registry-url: https://registry.npmjs.org");
-		expect(workflow).not.toMatch(/echo[^\n]*NPM_TOKEN/);
 		expect(workflow).toContain("persist-credentials: false");
 	});
 });
