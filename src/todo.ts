@@ -13,6 +13,7 @@
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { getPreferences } from "./preferences.js";
+import { statusHint } from "./reminder.js";
 import { getSessionMode } from "./session-mode.js";
 import { formatStatusLabel, t } from "./state/labels.js";
 import { selectTasksByStatus, selectTodoCounts, selectVisibleTasks } from "./state/selectors.js";
@@ -20,6 +21,7 @@ import { applyTaskMutation } from "./state/state-reducer.js";
 import type { TaskState } from "./state/state.js";
 import { commitState, getActiveRenderSession, getRenderState, getState, sid } from "./state/store.js";
 import { buildToolResult } from "./tool/response-envelope.js";
+import type { Task } from "./tool/types.js";
 import {
 	COMMAND_NAME,
 	ERR_REQUIRES_INTERACTIVE,
@@ -32,7 +34,7 @@ import {
 import type { Runtime } from "./sync/runtime.js";
 import type { ToolReturn } from "./sync/tool.js";
 import { executeSyncTodo } from "./sync/tool.js";
-import { describeSnapshot, linkedToTask } from "./sync/text.js";
+import { describeSnapshot, linkedToTask, projectPanelState } from "./sync/text.js";
 import { formatCommandTaskLine, renderTodoCall, renderTodoResult } from "./view/format.js";
 
 // English fallbacks for localized /todos section headers — the box-drawing
@@ -70,6 +72,7 @@ export const DEFAULT_PROMPT_GUIDELINES: string[] = [
 	"Update a task the moment its state changes. Set waitingReason as soon as you wait for someone, such as an approval or a review, and failureReason as soon as work failed or hit an error. Clear each with an empty string once it is resolved. Never leave a task in_progress without saying what it waits for.",
 	"In OpenSpec sync mode, list shows the tasks imported from tasks.md. Do the plan's work under those ids, and never paraphrase a plan task into a new one. To change a linked task's status pass expectedRevision, the revision shown by the latest list, get or result. Complete a linked task the moment its acceptance criteria are met; completing a linked task checks its box in tasks.md.",
 	'In OpenSpec sync mode, use scope "incidental" with a reason only for a temporary step outside the plan. Incidental tasks never count as OpenSpec progress. Linked wording cannot be changed or deleted here; revise the OpenSpec plan instead.',
+	"Before you end a turn, make every task you worked on match reality: completed when done, pending when not started, or carrying a waitingReason or failureReason. If a task is still in_progress with no reason when you stop, the extension sends you one reminder and you must update it.",
 	"A checked box records progress; it is not proof that tests passed or that the work was verified. Report what you ran and what it showed, and do not claim more than that.",
 ];
 
@@ -108,6 +111,18 @@ function withWarning(result: ToolReturn, warning: string | undefined): ToolRetur
 	return { ...result, content: [{ type: "text", text: `${result.content[0].text} ${warning}` }] };
 }
 
+/** A result ends with a hint when work waits and nothing is marked in progress. */
+function withStatusHint(result: ToolReturn, tasks: readonly Task[]): ToolReturn {
+	const hint = statusHint(tasks);
+	if (!hint) return result;
+	return { ...result, content: [{ type: "text", text: `${result.content[0].text}\n${hint}` }] };
+}
+
+/** Only a call that moves a task between statuses, or removes one, can leave nothing in progress. */
+function movesStatus(action: string, params: TaskMutationParams): boolean {
+	return action === "delete" || (action === "update" && params.status !== undefined);
+}
+
 /** Register the `todo` tool. Without a runtime the tool only ever runs in normal mode. */
 export function registerTodoTool(pi: ExtensionAPI, runtime?: Runtime, hooks?: ToolHooks): void {
 	const guidance = getPreferences().guidance ?? {};
@@ -122,7 +137,11 @@ export function registerTodoTool(pi: ExtensionAPI, runtime?: Runtime, hooks?: To
 
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
 			if (runtime && getSessionMode(sid(ctx)).mode === "openspec") {
-				const reply = await executeSyncTodo(runtime, sid(ctx), params.action, params as TaskMutationParams, signal);
+				const synced = await executeSyncTodo(runtime, sid(ctx), params.action, params as TaskMutationParams, signal);
+				const reply =
+					synced.details.error || !movesStatus(params.action, params as TaskMutationParams)
+						? synced
+						: withStatusHint(synced, projectPanelState(runtime.provider.getSnapshot(sid(ctx))).tasks);
 				// A linked completion repaints inside the writer, which reports its own repaint problems.
 				const writerRepaints =
 					params.action === "update" && params.status === "completed" && params.scope !== "incidental";
@@ -131,7 +150,11 @@ export function registerTodoTool(pi: ExtensionAPI, runtime?: Runtime, hooks?: To
 			}
 			const result = applyTaskMutation(getState(sid(ctx)), params.action, params as TaskMutationParams);
 			commitState(sid(ctx), result.state);
-			const built = buildToolResult(params.action, params as TaskMutationParams, result.state, result.op);
+			const plain = buildToolResult(params.action, params as TaskMutationParams, result.state, result.op);
+			const changed =
+				result.op.kind === "delete" ||
+				(result.op.kind === "update" && result.op.changed && movesStatus("update", params as TaskMutationParams));
+			const built = changed ? withStatusHint(plain, result.state.tasks) : plain;
 			if (!MUTATIONS.has(params.action) || result.op.kind === "error") return built;
 			return withWarning(built, await afterCommit(hooks, sid(ctx)));
 		},

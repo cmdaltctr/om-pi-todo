@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach } from "vitest";
 import { resetPreferencesCache } from "../src/preferences.js";
 import { __resetSessionModes } from "../src/session-mode.js";
+import { __resetNudges } from "../src/reminder.js";
 import { __resetRunStates } from "../src/state/run-state.js";
 import { __resetState } from "../src/state/store.js";
 
@@ -60,6 +61,7 @@ export function useCleanEnvironment() {
 		resetPreferencesCache();
 		__resetSessionModes();
 		__resetRunStates();
+		__resetNudges();
 	});
 	afterEach(() => {
 		for (const key of ["HOME", "XDG_CONFIG_HOME"]) {

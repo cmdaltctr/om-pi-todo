@@ -150,7 +150,7 @@ describe("linked status updates need the current revision", () => {
 		const r = await t.call({ action: "update", id: 2, status: "completed", expectedRevision: rev });
 		expect(t.disk().toString()).toBe(md("- [x] 1.1 Done", "- [x] 1.2 Open", "- [ ] 1.3 Later"));
 		expect(r.text).toMatch(
-			/^Updated #2 \(pending → completed\)\. The checkbox was written and the OpenSpec CLI confirmed this task as done\. Revision [0-9a-f]{16}\. OpenSpec tasks: 2\/3 checked \(recorded progress; it does not show that tests passed\)\.$/,
+			/^Updated #2 \(pending → completed\)\. The checkbox was written and the OpenSpec CLI confirmed this task as done\. Revision [0-9a-f]{16}\. OpenSpec tasks: 2\/3 checked \(recorded progress; it does not show that tests passed\)\.\nHint: no task is in_progress\. Mark the next task in_progress with todo update before you start it\.$/,
 		);
 		expect(r.details.error).toBeUndefined();
 		const after = t.runtime.provider.getSnapshot("s1");
@@ -496,7 +496,7 @@ describe("incidental tasks", () => {
 		const before = t.disk();
 		await t.call({ action: "create", subject: "Mine", scope: "incidental", reason: "r" });
 		expect((await t.call({ action: "update", id: 1, status: "completed", scope: "incidental" })).text).toBe(
-			"Updated #1 (pending → completed) [incidental]",
+			`Updated #1 (pending → completed) [incidental]\nHint: no task is in_progress. Mark the next task in_progress with todo update before you start it.`,
 		);
 		const list = (await t.call({ action: "list" })).text;
 		expect(list).toContain("0/1 checked");
@@ -514,7 +514,9 @@ describe("incidental tasks", () => {
 	it("deleting an incidental task leaves linked tasks alone", async () => {
 		const t = make(md("- [ ] A"));
 		await t.call({ action: "create", subject: "Mine", scope: "incidental", reason: "r" });
-		expect((await t.call({ action: "delete", id: 1, scope: "incidental" })).text).toBe("Deleted #1: Mine [incidental]");
+		expect((await t.call({ action: "delete", id: 1, scope: "incidental" })).text).toBe(
+			`Deleted #1: Mine [incidental]\nHint: no task is in_progress. Mark the next task in_progress with todo update before you start it.`,
+		);
 		expect(t.runtime.provider.getSnapshot("s1").linked).toHaveLength(1);
 	});
 

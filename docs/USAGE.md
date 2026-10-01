@@ -78,7 +78,23 @@ Marks on the heading and rows:
 | `+2 more (2 completed hidden)`  | Done rows are hidden. The count still includes them.                      |
 | `all completed (5 rows hidden)` | Every task is done.                                                       |
 
-When the agent stops with work still open, you get one reminder that lists the open tasks. It never ticks a box and never restarts the agent.
+A long row wraps onto the next lines under its own mark. Nothing is cut off.
+
+## Keeping statuses current
+
+The agent sometimes forgets to update a task. Two things help.
+
+1. **A hint on the result.** After a call that completes or deletes a task, the result says so when no task is `in_progress` and some are still `pending`. The agent sees the hint and marks the next task.
+2. **One nudge before it stops.** When the agent finishes a turn and a task is still `in_progress` with no `waitingReason` or `failureReason`, the extension sends the agent one message. The message lists those tasks and asks the agent to update each one. The agent then takes one more turn. You see the message in the transcript.
+
+The nudge:
+
+- Comes once for each prompt you send.
+- Does not come after you stop the agent, or after an error.
+- Skips a task that gives a `waitingReason` or a `failureReason`.
+- Never changes a task and never ticks a box. The agent does that.
+
+When the agent stops with work still open, you also get one reminder that lists the open tasks.
 
 ## Settings
 

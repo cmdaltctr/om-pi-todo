@@ -14,7 +14,7 @@ import type { ChangeDiscovery } from "./discovery.js";
 import { createDiscovery } from "./openspec/discover.js";
 import { refreshPreferences, resolveCollapseKey } from "./preferences.js";
 import { registerTodoSettingsCommand } from "./settings.js";
-import { buildSettleReminder, unresolvedInProgress } from "./reminder.js";
+import { buildNudge, buildSettleReminder, claimNudge, resetNudge, unresolvedInProgress } from "./reminder.js";
 import { evictRunState, getRunState, runStateFromAgentEnd, setRunState } from "./state/run-state.js";
 import { createRuntime, type RuntimeDeps } from "./sync/runtime.js";
 import type { PanelModel } from "./view/panel-model.js";
@@ -317,6 +317,7 @@ export default async function (
 		evictSession(s);
 		evictSessionMode(s);
 		evictRunState(s);
+		resetNudge(s);
 		runtime.stop(s);
 		// Overlay teardown is sid-gated: a child shutdown (distinct sid) must not
 		// dispose the foreground's overlay. Only the foreground's own shutdown
@@ -387,6 +388,26 @@ export default async function (
 		if (id === undefined) return;
 		setRunState(id, runStateFromAgentEnd(event.messages));
 		await runStateChanged(id);
+	});
+
+	// A new prompt, as opposed to a continuation, earns the agent one more nudge.
+	pi.on("before_agent_start", async (_event, ctx) => {
+		const id = sessionOf(ctx);
+		if (id !== undefined) resetNudge(id);
+	});
+
+	// The last point where the agent can still be asked to act. When it stops with a task still marked
+	// in progress and no reason given, ask once for a status update. An abort or error means the user
+	// stopped the run, so it is left alone. Nothing here changes a task.
+	pi.on("agent_before_settle", async (event, ctx) => {
+		const id = sessionOf(ctx);
+		if (id === undefined || event.outcome !== "completed") return;
+		const message = buildNudge(unresolvedInProgress(id, runtime).filter((item) => !item.explained));
+		if (!message || !claimNudge(id)) return;
+		return {
+			entries: [{ type: "custom_message" as const, customType: "todo-status-nudge", content: message, display: true }],
+			continue: true,
+		};
 	});
 
 	// Final and notification-only: nothing returned here can continue the agent. Show one reminder when
