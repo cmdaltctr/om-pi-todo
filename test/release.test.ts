@@ -46,7 +46,7 @@ describe("reading npm pack output", () => {
 
 describe("the package is ready to publish", () => {
 	it("has a public name, a semantic version and is not private", () => {
-		expect(pkg.name).toBe("pi-todo-openspec");
+		expect(pkg.name).toBe("om-pi-todo");
 		expect(pkg.private).toBeUndefined();
 		expect(pkg.version).toMatch(/^\d+\.\d+\.\d+$/);
 		expect(pkg.publishConfig).toEqual({ access: "public", provenance: true });

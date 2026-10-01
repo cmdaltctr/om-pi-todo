@@ -26,8 +26,8 @@ const json = blocks.filter((b) => b.lang === "json");
 const parse = (text: string) => JSON.parse(text.startsWith("{") || text.startsWith("[") ? text : `[${text}]`);
 const isCall = (v: unknown): v is Record<string, any> => typeof v === "object" && v !== null && "action" in v;
 const calls = json.map((b) => parse(b.text)).filter(isCall);
-const REPO = "github.com/cmdaltctr/ompts-todo";
-const OLD_REPO_NAME = "opinionated-modular-pi-todo-system-ompts";
+const REPO = "github.com/cmdaltctr/om-pi-todo";
+const OLD_NAMES = ["opinionated-modular-pi-todo-system-ompts", "ompts-todo", "pi-todo-openspec"];
 
 describe("tool examples in the docs match the product", () => {
 	it("every JSON example parses", () => {
@@ -310,7 +310,7 @@ describe("the release steps in the README match the repository", () => {
 	it("name the real package and the commands the maintainer runs", () => {
 		expect(section).toContain(pkg.name);
 		expect(section).toContain("Release Please");
-		expect(section).toContain("npm stage list pi-todo-openspec");
+		expect(section).toContain("npm stage list om-pi-todo");
 		expect(section).toContain("npm stage approve <stage-id>");
 		expect(workflow).toContain("npm stage publish");
 		expect(workflow).toContain("npm stage approve");
@@ -394,7 +394,7 @@ describe("the project is named the OMMS way", () => {
 		expect(pkg.repository.url).toBe(`git+https://${REPO}.git`);
 	});
 
-	it("the old repository name appears nowhere in the project", () => {
+	it("the old repository and package names appear nowhere in the project", () => {
 		for (const f of [
 			"README.md",
 			"AGENTS.md",
@@ -407,13 +407,13 @@ describe("the project is named the OMMS way", () => {
 			".github/workflows/ci.yml",
 			".github/workflows/release.yml",
 		]) {
-			expect(read(f), f).not.toContain(OLD_REPO_NAME);
+			for (const old of OLD_NAMES) expect(read(f), f).not.toContain(old);
 		}
 	});
 
 	it("the uninstall guide shows the folder a clone creates", () => {
-		expect(uninstall).toContain("/full/path/to/ompts-todo");
-		expect(install).toContain("cd ompts-todo");
+		expect(uninstall).toContain("/full/path/to/om-pi-todo");
+		expect(install).toContain("cd om-pi-todo");
 	});
 });
 

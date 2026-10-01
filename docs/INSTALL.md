@@ -15,7 +15,7 @@ You need:
 1. Run this command in a terminal:
 
    ```sh
-   pi install npm:pi-todo-openspec
+   pi install npm:om-pi-todo
    ```
 
 2. Pi adds the package to `packages` in `~/.pi/agent/settings.json`.
@@ -26,7 +26,7 @@ You need:
 To install a fixed version, add it after the name:
 
 ```sh
-pi install npm:pi-todo-openspec@0.1.0
+pi install npm:om-pi-todo@0.2.0
 ```
 
 To update later, run `pi update`.
@@ -38,7 +38,7 @@ Use this to try the newest code before a release.
 1. Run this command:
 
    ```sh
-   pi install git:github.com/cmdaltctr/ompts-todo
+   pi install git:github.com/cmdaltctr/om-pi-todo
    ```
 
 2. Pi adds the package to `packages` in `~/.pi/agent/settings.json`. For a folder path, Pi may store the path relative to that file. That is normal.
@@ -74,8 +74,8 @@ Use this when you want to edit the code.
 1. Clone the repository and install its tools:
 
    ```sh
-   git clone https://github.com/cmdaltctr/ompts-todo.git
-   cd ompts-todo
+   git clone https://github.com/cmdaltctr/om-pi-todo.git
+   cd om-pi-todo
    bun install
    bun run setup:host
    ```

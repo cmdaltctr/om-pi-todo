@@ -9,19 +9,19 @@ This guide removes the extension and puts Pi back as it was. Nothing is deleted 
    From npm:
 
    ```sh
-   pi remove npm:pi-todo-openspec
+   pi remove npm:om-pi-todo
    ```
 
    From GitHub:
 
    ```sh
-   pi remove git:github.com/cmdaltctr/ompts-todo
+   pi remove git:github.com/cmdaltctr/om-pi-todo
    ```
 
    From a local copy. Use the same full path you installed:
 
    ```sh
-   pi remove /full/path/to/ompts-todo
+   pi remove /full/path/to/om-pi-todo
    ```
 
 2. Run `pi list`. The package should be gone.

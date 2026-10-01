@@ -1,5 +1,5 @@
 {
-	"name": "pi-todo-openspec",
+	"name": "om-pi-todo",
 	"version": "0.2.0",
 	"description": "Opinionated modular todo system for Pi, with OpenSpec task sync",
 	"keywords": [
@@ -10,15 +10,15 @@
 		"pi-package",
 		"todo"
 	],
-	"homepage": "https://github.com/cmdaltctr/ompts-todo#readme",
+	"homepage": "https://github.com/cmdaltctr/om-pi-todo#readme",
 	"bugs": {
-		"url": "https://github.com/cmdaltctr/ompts-todo/issues"
+		"url": "https://github.com/cmdaltctr/om-pi-todo/issues"
 	},
 	"license": "MIT",
 	"author": "Muhammad Aizat Md Hawari",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/cmdaltctr/ompts-todo.git"
+		"url": "git+https://github.com/cmdaltctr/om-pi-todo.git"
 	},
 	"files": [
 		"src",

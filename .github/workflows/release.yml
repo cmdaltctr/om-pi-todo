@@ -9,9 +9,9 @@ name: Release
 #   4. The publish job tests that exact commit, then STAGES the version on npm.
 #      Nothing is installable yet.
 #   5. You approve the staged version with two-factor authentication:
-#        npm stage list pi-todo-openspec
+#        npm stage list om-pi-todo
 #        npm stage approve <stage-id>
-#      or use the Staged tab at https://www.npmjs.com/package/pi-todo-openspec
+#      or use the Staged tab at https://www.npmjs.com/package/om-pi-todo
 #
 # No npm token exists. npm trusts this workflow file through OIDC (trusted publishing).
 # Publishing happens in this run, not in a tag-push workflow, because a tag made by
@@ -136,9 +136,9 @@ jobs:
             echo
             echo "---"
             echo
-            echo "**npm:** \`pi-todo-openspec@${RELEASE_VERSION}\` is staged and not yet installable."
-            echo "Approve it with 2FA in the Staged tab at https://www.npmjs.com/package/pi-todo-openspec,"
-            echo "or run \`npm stage list pi-todo-openspec\`, then \`npm stage approve <stage-id>\`."
+            echo "**npm:** \`om-pi-todo@${RELEASE_VERSION}\` is staged and not yet installable."
+            echo "Approve it with 2FA in the Staged tab at https://www.npmjs.com/package/om-pi-todo,"
+            echo "or run \`npm stage list om-pi-todo\`, then \`npm stage approve <stage-id>\`."
             echo "To try it first: \`npm stage download <stage-id>\` and install the tarball."
           } >> notes.md
           gh release edit "${TAG_NAME}" --repo "${GITHUB_REPOSITORY}" --notes-file notes.md

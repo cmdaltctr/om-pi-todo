@@ -16,7 +16,7 @@ A todo list for the [Pi](https://github.com/earendil-works/pi) coding agent. It 
 ## Install
 
 ```sh
-pi install npm:pi-todo-openspec
+pi install npm:om-pi-todo
 ```
 
 Then run `/reload` in Pi. To install from GitHub instead, see the install guide. If you already use `@juicesharp/rpiv-todo`, read the install guide first. Both register a `todo` tool, so you must disable one.
@@ -66,7 +66,7 @@ bun run ci           # format check, lint, type check and tests
 
 ## Release (maintainers)
 
-Releases go to npm as `pi-todo-openspec`. [Release Please](https://github.com/googleapis/release-please) prepares each one. You never edit the version or the changelog by hand.
+Releases go to npm as `om-pi-todo`. [Release Please](https://github.com/googleapis/release-please) prepares each one. You never edit the version or the changelog by hand.
 
 1. Write commits and pull request titles in the [Conventional Commits](https://www.conventionalcommits.org) style: `feat:`, `fix:`, `perf:`, `docs:`. Add `!` for a breaking change, for example `feat!:`.
 2. Merge to `main`. Release Please opens or updates a pull request called "chore(main): release X.Y.Z". It bumps `version` in `package.json` and writes `CHANGELOG.md`.
@@ -76,11 +76,11 @@ Releases go to npm as `pi-todo-openspec`. [Release Please](https://github.com/go
 6. Approve it with two-factor authentication:
 
    ```sh
-   npm stage list pi-todo-openspec
+   npm stage list om-pi-todo
    npm stage approve <stage-id>
    ```
 
-   You can also use the Staged tab at https://www.npmjs.com/package/pi-todo-openspec. To reject a version, run `npm stage reject <stage-id>`.
+   You can also use the Staged tab at https://www.npmjs.com/package/om-pi-todo. To reject a version, run `npm stage reject <stage-id>`.
 
 What each commit type does before version 1.0.0:
 
@@ -115,8 +115,8 @@ No npm token is used. npm trusts the release workflow through OIDC. A trusted pu
 4. Add the npm trusted publisher. It needs npm 11.15 or later and asks for 2FA. The names must match exactly:
 
    ```sh
-   npm trust github pi-todo-openspec --file release.yml --repo cmdaltctr/ompts-todo --env npm-publish --allow-stage-publish
-   npm trust list pi-todo-openspec
+   npm trust github om-pi-todo --file release.yml --repo cmdaltctr/om-pi-todo --env npm-publish --allow-stage-publish
+   npm trust list om-pi-todo
    ```
 
    `--allow-stage-publish` lets the workflow stage a version but not release it. You still approve every release.
