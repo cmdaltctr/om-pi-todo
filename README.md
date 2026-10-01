@@ -60,7 +60,8 @@ bun run setup:host   # fetches the Pi host packages into .pi-host/
 bun run ci           # lint, type check and tests
 ```
 
-- `git push` runs `bun run ci` first, through a Husky hook. Skip it once with `git push --no-verify`.
+- `bun run ci` checks your working folder. `bun run ci:clean` checks a fresh clone of your last commit, which is what CI sees.
+- `git push` runs `bun run ci:clean` first, through a Husky hook. Skip it once with `git push --no-verify`.
 - GitHub Actions runs the same steps on every push and pull request.
 - Contributor notes for agents are in [AGENTS.md](AGENTS.md).
 

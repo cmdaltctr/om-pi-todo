@@ -1,0 +1,4 @@
+[install]
+# Pi supplies typebox and the @earendil-works packages. Never install private copies.
+# Without this, `bun install` adds the peer dependencies to node_modules.
+peer = false

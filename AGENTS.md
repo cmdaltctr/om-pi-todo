@@ -44,12 +44,14 @@ bun run setup:host
 | Type check | `bun run typecheck` | `.pi-host/` |
 | All tests | `bun run test` | `.pi-host/` |
 | One test file | `./node_modules/.bin/vitest run test/<name>.test.ts` | `.pi-host/` |
-| Full gate | `bun run ci` | `.pi-host/` |
+| Full gate on your working folder | `bun run ci` | `.pi-host/` |
+| Full gate on a fresh clone of HEAD | `bun run ci:clean` | `.pi-host/`, a commit |
 | Dependency audit | `bun run audit` | Network |
 
 - Real-CLI tests need `openspec` 1.13.1 on the PATH. They skip when it is missing.
 - Startup tests need `pi` on the PATH. They skip when it is missing.
 - Run `bun run ci` before you finish any change. It must pass.
+- Commit, then run `bun run ci:clean`. A passing `ci` can still fail in CI, because your folder differs from a clean clone.
 
 ## Testing
 
@@ -112,7 +114,7 @@ Test files group by area.
 - Use Conventional Commits: `feat:`, `fix:`, `docs:`, `test:`, `chore:`, `refactor:`.
 - Write commit messages in British English and in the imperative.
 - Run `git pull --rebase` before you push.
-- A Husky hook runs `bun run ci` on `git push`. Do not use `--no-verify` unless the user asks.
+- A Husky hook runs `bun run ci:clean` on `git push`. Do not use `--no-verify` unless the user asks.
 - GitHub Actions runs lint, types, tests and an audit on every push and pull request. All must pass.
 - Ask before you install a dependency, push, force-push, or delete files.
 

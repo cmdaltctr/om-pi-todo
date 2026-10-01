@@ -211,7 +211,17 @@ describe("install and uninstall guides match the package", () => {
 describe("the local gate, the hook and CI run the same steps", () => {
 	it("package.json ci runs lint, types and tests, and the hook runs ci", () => {
 		for (const step of ["bun run lint", "bun run typecheck", "bun run test"]) expect(pkg.scripts.ci, step).toContain(step);
-		expect(read(".husky/pre-push")).toContain("bun run ci");
+		expect(pkg.scripts["ci:clean"]).toBe("./scripts/ci-clean.sh");
+		expect(read(".husky/pre-push")).toContain("bun run ci:clean");
+	});
+
+	it("ci:clean tests a fresh clone installed from the lockfile with Husky off, like CI", () => {
+		const script = read("scripts/ci-clean.sh");
+		expect(script).toContain("git clone");
+		expect(script).toContain("bun install --frozen-lockfile");
+		expect(script).toContain('export HUSKY=0');
+		expect(script).toContain("bun run ci");
+		expect(read(".github/workflows/ci.yml")).toContain('HUSKY: "0"');
 	});
 
 	it("the workflow runs the same three steps and installs from the lockfile", () => {
@@ -226,6 +236,10 @@ describe("the local gate, the hook and CI run the same steps", () => {
 		const uses = [...read(".github/workflows/ci.yml").matchAll(/uses:\s*(\S+)/g)].map((m) => m[1]);
 		expect(uses.length).toBeGreaterThanOrEqual(4);
 		for (const u of uses) expect(u, u).toMatch(/@[0-9a-f]{40}$/);
+	});
+
+	it("a plain install adds no private copy of a Pi host package", () => {
+		expect(read("bunfig.toml")).toMatch(/^peer = false$/m);
 	});
 
 	it("the hook is installed through a prepare script that cannot break a plain install", () => {

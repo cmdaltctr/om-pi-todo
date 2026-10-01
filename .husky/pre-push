@@ -3,6 +3,8 @@
 # Skip once with: git push --no-verify
 set -e
 
-echo "pre-push: running local CI (lint, types, tests)"
+# Tests a fresh clone of the committed code, like CI does. Your working folder
+# can differ from a clean clone, and that difference has failed CI before.
+echo "pre-push: running local CI on a fresh clone (lint, types, tests)"
 ./scripts/setup-host.sh
-bun run ci
+bun run ci:clean
