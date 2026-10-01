@@ -87,8 +87,6 @@ Three details that are easy to miss:
 - **Pin actions.** Every action in the workflow uses a full commit SHA, not a tag.
 - **Test a clean clone.** `bun run ci` can pass in your folder and fail in CI. `bun run ci:clean` removes that gap.
 
-To set the same tooling up in another repo with an agent, use [the setup prompt](docs/SETUP-PROMPT.md).
-
 ## Licence and credit
 
 MIT. See [LICENSE](LICENSE).
