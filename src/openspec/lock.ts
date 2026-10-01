@@ -117,7 +117,7 @@ function pause(ms: number, signal?: AbortSignal): Promise<void> {
 async function contended(lockPath: string): Promise<AcquireResult> {
 	let text = "";
 	try {
-		// nosemgrep: AIK_ts_generic_path_traversal
+		// nosemgrep: AIK_ts_generic_path_traversal -- path is resolved and checked inside the confirmed OpenSpec root
 		text = await readFile(lockPath, "utf-8");
 	} catch {
 		// vanished between attempts; report as unreadable below
