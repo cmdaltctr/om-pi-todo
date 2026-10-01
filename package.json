@@ -1,6 +1,6 @@
 {
 	"name": "pi-todo-openspec",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"description": "Opinionated modular todo system for Pi, with OpenSpec task sync",
 	"keywords": [
 		"ompts",
