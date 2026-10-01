@@ -317,10 +317,8 @@ describe("the release steps in the README match the repository", () => {
 	});
 
 	it("use the same names for secrets, variable, environment and workflow as the workflow does", () => {
-		for (const name of ["RELEASE_APP_ID", "RELEASE_APP_PRIVATE_KEY"]) {
-			expect(section, name).toContain(name);
-			expect(workflow, name).toContain(`secrets.${name}`);
-		}
+		expect(section).not.toMatch(/RELEASE_APP|private key|gh secret set/i); // no setup step creates a secret
+		expect(workflow).not.toMatch(/RELEASE_APP/);
 		expect(section).toContain("RELEASE_PLEASE_ENABLED");
 		expect(workflow).toContain("vars.RELEASE_PLEASE_ENABLED");
 		expect(section).toContain("--env npm-publish");
@@ -330,11 +328,16 @@ describe("the release steps in the README match the repository", () => {
 		expect(section).toContain("--allow-stage-publish");
 	});
 
+	it("say there are no secrets to create, and tell the maintainer to allow Actions to open pull requests", () => {
+		expect(section).toContain("No secrets are needed");
+		expect(section).toContain("Allow GitHub Actions to create and approve pull requests");
+		expect(read("AGENTS.md")).toContain("There is no npm token and no GitHub App key");
+	});
+
 	it("say there is no npm token, and the workflow has none", () => {
-		expect(section).toContain("No npm token is used");
+		expect(section).toContain("There is no npm token");
 		expect(section).not.toContain("NPM_TOKEN");
 		expect(workflow).not.toMatch(/NPM_TOKEN|NODE_AUTH_TOKEN/);
-		expect(read("AGENTS.md")).toContain("There is no npm token");
 	});
 
 	it("tell maintainers not to edit the files Release Please owns, and the agent guide agrees", () => {

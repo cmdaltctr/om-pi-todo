@@ -71,7 +71,7 @@ Releases go to npm as `pi-todo-openspec`. [Release Please](https://github.com/go
 
 1. Write commits and pull request titles in the [Conventional Commits](https://www.conventionalcommits.org) style: `feat:`, `fix:`, `perf:`, `docs:`. Add `!` for a breaking change, for example `feat!:`.
 2. Merge to `main`. Release Please opens or updates a pull request called "chore(main): release X.Y.Z". It bumps `version` in `package.json` and writes `CHANGELOG.md`.
-3. Read that pull request. Check the version and the changelog text. Its CI checks run.
+3. Read that pull request. Check the version and the changelog text.
 4. Merge it. Release Please tags the commit and creates a GitHub release.
 5. The publish job runs the full gate on that exact commit, then **stages** the version on npm. It is not installable yet. The job adds the approval steps to the GitHub release.
 6. Approve it with two-factor authentication:
@@ -94,7 +94,7 @@ What each commit type does before version 1.0.0:
 
 ### One-time setup
 
-No npm token is used. npm trusts the release workflow through OIDC. A trusted publisher can only be added to a package that already exists, so publish the first version by hand.
+No secrets are needed. There is no npm token and no GitHub App key. npm trusts the release workflow through OIDC. A trusted publisher can only be added to a package that already exists, so publish the first version by hand.
 
 1. Publish the first version by hand, then tag it and create its GitHub release, so Release Please counts from it:
 
@@ -105,11 +105,10 @@ No npm token is used. npm trusts the release workflow through OIDC. A trusted pu
    gh release create v0.1.0 --title v0.1.0 --notes-file CHANGELOG.md
    ```
 
-2. Create a private GitHub App with no webhook. Give it read and write access to Contents and Pull requests. Install it on this repository only. Generate a private key. Save these repository secrets:
+2. Allow Release Please to open pull requests. In GitHub, open Settings, Actions, General, and turn on "Allow GitHub Actions to create and approve pull requests". Or run:
 
    ```sh
-   gh secret set RELEASE_APP_ID
-   gh secret set RELEASE_APP_PRIVATE_KEY < path/to/private-key.pem
+   gh api -X PUT repos/cmdaltctr/ompts-todo/actions/permissions/workflow -f default_workflow_permissions=read -F can_approve_pull_request_reviews=true
    ```
 
 3. Create the environment `npm-publish`, limited to the `main` branch. In GitHub, open Settings, Environments.
@@ -132,7 +131,9 @@ If the publish job fails with `ENEEDAUTH`, the workflow file name, the environme
 
 After the first staged release is approved and shows a provenance badge, open the package settings on npmjs.com and choose "Require two-factor authentication and disallow tokens".
 
-If the smoke or gate step fails, nothing is staged. The tag and GitHub release already exist. Push a `fix:` commit. Release Please then proposes the next patch version.
+If the gate fails, nothing is staged. The tag and GitHub release already exist. Push a `fix:` commit. Release Please then proposes the next patch version.
+
+The release pull request is opened with the built-in token, so GitHub does not run the normal CI checks on it. The publish job runs the full gate again before it stages anything, so a broken release cannot reach npm. To get CI on the release pull request as well, use a GitHub App token in the release job.
 
 ## Tooling you can copy
 
