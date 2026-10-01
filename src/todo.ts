@@ -118,9 +118,12 @@ function withStatusHint(result: ToolReturn, tasks: readonly Task[]): ToolReturn 
 	return { ...result, content: [{ type: "text", text: `${result.content[0].text}\n${hint}` }] };
 }
 
-/** Only a call that moves a task between statuses, or removes one, can leave nothing in progress. */
-function movesStatus(action: string, params: TaskMutationParams): boolean {
-	return action === "delete" || (action === "update" && params.status !== undefined);
+/**
+ * Only a call that finishes or removes a task can leave nothing in progress by accident. Moving a task
+ * back to pending is a choice the agent made, so it earns no hint.
+ */
+function endsTask(action: string, params: TaskMutationParams): boolean {
+	return action === "delete" || (action === "update" && params.status === "completed");
 }
 
 /** Register the `todo` tool. Without a runtime the tool only ever runs in normal mode. */
@@ -139,7 +142,7 @@ export function registerTodoTool(pi: ExtensionAPI, runtime?: Runtime, hooks?: To
 			if (runtime && getSessionMode(sid(ctx)).mode === "openspec") {
 				const synced = await executeSyncTodo(runtime, sid(ctx), params.action, params as TaskMutationParams, signal);
 				const reply =
-					synced.details.error || !movesStatus(params.action, params as TaskMutationParams)
+					synced.details.error || !endsTask(params.action, params as TaskMutationParams)
 						? synced
 						: withStatusHint(synced, projectPanelState(runtime.provider.getSnapshot(sid(ctx))).tasks);
 				// A linked completion repaints inside the writer, which reports its own repaint problems.
@@ -153,7 +156,7 @@ export function registerTodoTool(pi: ExtensionAPI, runtime?: Runtime, hooks?: To
 			const plain = buildToolResult(params.action, params as TaskMutationParams, result.state, result.op);
 			const changed =
 				result.op.kind === "delete" ||
-				(result.op.kind === "update" && result.op.changed && movesStatus("update", params as TaskMutationParams));
+				(result.op.kind === "update" && result.op.changed && endsTask("update", params as TaskMutationParams));
 			const built = changed ? withStatusHint(plain, result.state.tasks) : plain;
 			if (!MUTATIONS.has(params.action) || result.op.kind === "error") return built;
 			return withWarning(built, await afterCommit(hooks, sid(ctx)));

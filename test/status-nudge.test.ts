@@ -137,6 +137,17 @@ describe("the status hint on update results", () => {
 		expect(result.text).not.toMatch(hint);
 	});
 
+	it("is silent when the agent moves a task back to pending on purpose", async () => {
+		const { t, ctx } = await working(["A", "B"], [1]);
+		const result = await t.call(ctx, { action: "update", id: 1, status: "pending" });
+		expect(result.text).not.toMatch(hint);
+	});
+
+	it("says so when a delete leaves only pending tasks", async () => {
+		const { t, ctx } = await working(["A", "B"], [1]);
+		expect((await t.call(ctx, { action: "delete", id: 1 })).text).toMatch(hint);
+	});
+
 	it("is silent when nothing is left to start", async () => {
 		const { t, ctx } = await working(["A"], [1]);
 		expect((await t.call(ctx, { action: "update", id: 1, status: "completed" })).text).not.toMatch(hint);
