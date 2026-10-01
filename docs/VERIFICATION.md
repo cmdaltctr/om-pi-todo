@@ -7,7 +7,7 @@ Environment: Pi 0.99.1, OpenSpec CLI 1.13.1, Node 26.9, Vitest 5.0.3, TypeScript
 
 | Purpose | Command | Result |
 | --- | --- | --- |
-| Regression suite | `./node_modules/.bin/vitest run` | 29 files, 640 tests, all passing (about 23 s on an idle machine) |
+| Regression suite | `./node_modules/.bin/vitest run` | 30 files, 654 tests, all passing (about 23 s on an idle machine) |
 | Type check | `./node_modules/.bin/tsc -p .` (`strict`) | 0 errors |
 | Dependency audit | `bun audit` | No vulnerabilities in 223 packages |
 | Security scan | Aikido `aikido_scan_paths` over all 37 `src` files plus `package.json`, `tsconfig.json`, `vitest.config.ts` | See findings below |

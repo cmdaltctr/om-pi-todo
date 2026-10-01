@@ -60,6 +60,10 @@ interface Session {
 async function startPi(manifestEdit: (m: Record<string, any>) => void = () => undefined): Promise<Session> {
 	const base = mkdtempSync(join(tmpdir(), "pi-todo-startup-"));
 	scratch.push(base);
+	return startPiWith(base, (_agentDir, pkgDir) => ({ packages: [pkgDir] }), manifestEdit);
+}
+
+async function startPiWith(base: string, settings: (agentDir: string, pkgDir: string) => unknown, manifestEdit: (m: Record<string, any>) => void = () => undefined): Promise<Session> {
 	const pkgDir = join(base, "pkg");
 	const agentDir = join(base, "agent");
 	const workDir = join(base, "work");
@@ -71,7 +75,7 @@ async function startPi(manifestEdit: (m: Record<string, any>) => void = () => un
 	manifestEdit(manifest);
 	writeFileSync(join(pkgDir, "package.json"), JSON.stringify(manifest));
 	writeFileSync(join(pkgDir, "shim.ts"), SHIM);
-	writeFileSync(join(agentDir, "settings.json"), JSON.stringify({ packages: [pkgDir] }));
+	writeFileSync(join(agentDir, "settings.json"), JSON.stringify(settings(agentDir, pkgDir)));
 
 	const child = spawn(
 		"pi",
@@ -123,5 +127,32 @@ describe.skipIf(!PI_AVAILABLE)("isolated Pi startup without rpiv packages", () =
 			m.dependencies = { typebox: "^1.1.24" };
 		});
 		expect(session.stderr).toMatch(/Host-provided extension packages must be declared in peerDependencies/);
+	}, 60_000);
+
+	/**
+	 * The README tells the user to change the original package's entry to the object form with
+	 * `"extensions": []`. This proves in a real, isolated Pi that the form stops that package's
+	 * extension from loading while this one still loads, and that without it both load.
+	 */
+	async function withOriginal(entry: (dir: string) => unknown) {
+		const base = mkdtempSync(join(tmpdir(), "pi-todo-original-"));
+		scratch.push(base);
+		const original = join(base, "original");
+		mkdirSync(original);
+		writeFileSync(join(original, "package.json"), JSON.stringify({ name: "fake-original", pi: { extensions: ["./index.ts"] } }));
+		writeFileSync(join(original, "index.ts"), `export default function (pi: any) { pi.registerCommand("original-marker", { description: "x", handler: async () => {} }); }\n`);
+		return startPiWith(base, (agentDir, pkgDir) => ({ packages: [entry(original), pkgDir] }));
+	}
+
+	it("the documented object form keeps the original package's extension out, and ours in", async () => {
+		const session = await withOriginal((dir) => ({ source: dir, extensions: [] }));
+		expect(session.commands).not.toContain("original-marker");
+		expect(session.commands).toEqual(expect.arrayContaining(["todos", "todo-settings"]));
+		expect(session.probe).toEqual(["Created #1: Probe task (pending)", "Updated #1 (pending → completed)", "[completed] #1 Probe task"]);
+	}, 60_000);
+
+	it("control: with the plain entry the original's extension loads too", async () => {
+		const session = await withOriginal((dir) => dir);
+		expect(session.commands).toContain("original-marker");
 	}, 60_000);
 });
