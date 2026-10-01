@@ -1,3 +1,4 @@
+import { visibleWidth } from "@earendil-works/pi-tui";
 import { describe, expect, it, vi } from "vitest";
 import type { RunState } from "../src/state/run-state.js";
 import type { TaskState } from "../src/state/state.js";
@@ -31,8 +32,8 @@ function build(initial: Task[], options: { sections?: PanelModel["sections"]; ru
 	const requestRender = vi.fn();
 	const setWidget = vi.fn((_key: string, f: unknown) => void (factory = f));
 	overlay.setUICtx({ setWidget, theme, getToolsExpanded: () => false } as any);
-	const render = (): string[] =>
-		factory ? (factory({ requestRender }, theme).render(120) as string[]).filter((l) => l !== "") : [];
+	const render = (width = 120): string[] =>
+		factory ? (factory({ requestRender }, theme).render(width) as string[]).filter((l) => l !== "") : [];
 	const set = (tasks: Task[], nextId?: number) =>
 		void (model.state = { tasks, nextId: nextId ?? tasks.reduce((m, t) => Math.max(m, t.id + 1), 1) });
 	return { overlay, model, run, render, set, setWidget, requestRender, registered: () => overlay.isRegistered() };
@@ -320,5 +321,40 @@ describe("repainting", () => {
 		fail = false;
 		t.overlay.update();
 		expect(t.overlay.isRegistered()).toBe(true);
+	});
+});
+
+describe("a long row wraps instead of being cut off", () => {
+	const reason = "Waiting for user permission to install the OCR CLI globally and then run the review";
+	const wide = (lines: string[]) => lines.filter((l) => visibleWidth(l) > 50);
+
+	it("keeps every word of a long waiting reason and never exceeds the width", () => {
+		const t = build([task(1, "pending", { waitingReason: reason }), task(2, "pending")]);
+		t.overlay.update();
+		const lines = t.render(50);
+		expect(lines.join("")).not.toContain("…");
+		const text = lines.map((l) => l.replace(/^(├─|└─|│| )\s*/, "")).join(" ");
+		expect(text).toContain(reason);
+		expect(wide(lines)).toEqual([]);
+	});
+
+	it("indents the continuation lines and puts the closing connector on the last row's first line", () => {
+		const t = build([task(1, "pending"), task(2, "pending", { waitingReason: reason })]);
+		t.overlay.update();
+		const lines = t.render(50);
+		const start = lines.findIndex((l) => l.startsWith("└─"));
+		expect(start).toBeGreaterThan(0);
+		expect(lines.length - start).toBeGreaterThan(1);
+		for (const l of lines.slice(start + 1)) expect(l.startsWith("   ")).toBe(true);
+		expect(lines.slice(0, start).some((l) => l.startsWith("├─"))).toBe(true);
+	});
+
+	it("keeps a continuation line of a middle row under the tree line", () => {
+		const t = build([task(1, "pending", { waitingReason: reason }), task(2, "pending"), task(3, "pending")]);
+		t.overlay.update();
+		const lines = t.render(50);
+		const second = lines.findIndex((l) => l.startsWith("├─") && l.includes("Task 2"));
+		expect(second).toBeGreaterThan(2);
+		expect(lines.slice(1, second).every((l, i) => (i === 0 ? l.startsWith("├─") : l.startsWith("│  ")))).toBe(true);
 	});
 });

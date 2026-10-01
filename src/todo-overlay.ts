@@ -18,7 +18,7 @@
  */
 
 import type { ExtensionUIContext, Theme } from "@earendil-works/pi-coding-agent";
-import { type TUI, truncateToWidth } from "@earendil-works/pi-tui";
+import { type TUI, truncateToWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { COLLAPSE_KEY_OFF } from "./config.js";
 import { getMaxWidgetLines, resolveCollapseKey } from "./preferences.js";
 import { t } from "./state/labels.js";
@@ -230,13 +230,20 @@ export class TodoOverlay {
 		// expands this live widget. Optional chaining preserves compatibility with hosts predating it.
 		const bodyBudget = this.uiCtx?.getToolsExpanded?.() === true ? overlayTasks.length : getMaxWidgetLines() - 1;
 		const layout = selectOverlayLayout(overlayState, bodyBudget);
-		for (const task of layout.visible) {
-			lines.push(
-				truncate(
-					`${theme.fg("dim", "├─")} ${formatOverlayTaskLine(task, theme, showIds, presentTask(task, byId, run))}`,
-				),
+		// Tree connectors take three columns. A long row wraps under its own connector, so a waiting or
+		// failure reason is never cut off. The last row closes the tree only when no summary row follows.
+		const hiddenCompleted = layout.hiddenCompleted + hiddenByTurn;
+		const hasSummary = hiddenCompleted > 0 || layout.truncatedTail > 0;
+		const bodyWidth = Math.max(1, width - 3);
+		layout.visible.forEach((task, index) => {
+			const closing = !hasSummary && index === layout.visible.length - 1;
+			const [first, ...rest] = wrapTextWithAnsi(
+				formatOverlayTaskLine(task, theme, showIds, presentTask(task, byId, run)),
+				bodyWidth,
 			);
-		}
+			lines.push(`${theme.fg("dim", closing ? "└─" : "├─")} ${first}`);
+			for (const line of rest) lines.push(`${closing ? " " : theme.fg("dim", "│")}  ${line}`);
+		});
 
 		const newlyDisplayedCompletedTaskIds = overlayTasks
 			.filter(
@@ -250,12 +257,7 @@ export class TodoOverlay {
 			this.completedTaskIdsPendingHide.add(taskId);
 		}
 
-		const hiddenCompleted = layout.hiddenCompleted + hiddenByTurn;
-		if (hiddenCompleted === 0 && layout.truncatedTail === 0) {
-			const last = lines.length - 1;
-			lines[last] = lines[last].replace("├─", "└─");
-			return this.withTrailingSpacer(lines);
-		}
+		if (!hasSummary) return this.withTrailingSpacer(lines);
 
 		const totalHidden = hiddenCompleted + layout.truncatedTail;
 		const parts: string[] = [];
