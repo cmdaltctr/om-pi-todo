@@ -110,7 +110,6 @@ Test files group by area.
 - Remove terminal control characters from any text shown in the panel or a notification.
 - Never put secrets, tokens or personal paths in code, tests or docs.
 - Scan changed first-party files with the Aikido tool when it is available, and fix findings.
-- `docs/VERIFICATION.md` lists open findings and known risks.
 
 ## Git and pull requests
 

@@ -407,7 +407,6 @@ describe("the project is named the OMMS way", () => {
 			"docs/INSTALL.md",
 			"docs/UNINSTALL.md",
 			"docs/USAGE.md",
-			"docs/VERIFICATION.md",
 			".github/workflows/ci.yml",
 			".github/workflows/release.yml",
 		]) {
@@ -430,7 +429,6 @@ describe("the repository holds nothing personal", () => {
 			"docs/INSTALL.md",
 			"docs/USAGE.md",
 			"docs/UNINSTALL.md",
-			"docs/VERIFICATION.md",
 			"tsconfig.json",
 			"vitest.config.ts",
 			"package.json",

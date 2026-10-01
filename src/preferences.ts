@@ -83,7 +83,7 @@ type FileRead = { kind: "absent" } | { kind: "ok"; value: Raw } | { kind: "bad";
 async function readObject(path: string): Promise<FileRead> {
 	let text: string;
 	try {
-		// nosemgrep: AIK_ts_generic_path_traversal -- path is resolved and checked inside the confirmed OpenSpec root (see docs/VERIFICATION.md)
+		// nosemgrep: AIK_ts_generic_path_traversal -- path is resolved and checked inside the confirmed OpenSpec root
 		text = await readFile(path, "utf-8");
 	} catch (error) {
 		if ((error as NodeJS.ErrnoException).code === "ENOENT") return { kind: "absent" };

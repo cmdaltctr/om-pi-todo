@@ -42,7 +42,6 @@ The `todo` tool already carries these rules in its own guidance. Add this block 
 - [How to install](docs/INSTALL.md)
 - [How to use](docs/USAGE.md)
 - [How to uninstall](docs/UNINSTALL.md)
-- [Verification record](docs/VERIFICATION.md): checks, security findings and known risks
 
 ## Requirements
 

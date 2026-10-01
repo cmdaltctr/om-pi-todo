@@ -58,7 +58,7 @@ const DEFAULT_WAIT_MS = 3_000;
 const DEFAULT_POLL_MS = 50;
 
 export function lockPathFor(target: string): string {
-	// nosemgrep: AIK_ts_generic_path_traversal -- path is resolved and checked inside the confirmed OpenSpec root (see docs/VERIFICATION.md)
+	// nosemgrep: AIK_ts_generic_path_traversal -- path is resolved and checked inside the confirmed OpenSpec root
 	return join(dirname(target), `${basename(target)}.pi-todo.lock`);
 }
 
@@ -161,7 +161,7 @@ export async function acquireLock(target: string, options: LockOptions = {}): Pr
 		const token = randomBytes(16).toString("hex");
 		const owner: LockOwner = { pid: process.pid, host: hostname(), createdAt: new Date().toISOString(), target, token };
 		try {
-			// nosemgrep: AIK_ts_generic_path_traversal -- path is resolved and checked inside the confirmed OpenSpec root (see docs/VERIFICATION.md)
+			// nosemgrep: AIK_ts_generic_path_traversal -- path is resolved and checked inside the confirmed OpenSpec root
 			const handle = await open(lockPath, "wx", 0o600);
 			try {
 				await handle.writeFile(JSON.stringify(owner));
@@ -191,7 +191,7 @@ export async function acquireLock(target: string, options: LockOptions = {}): Pr
 						if (released) return { released: false, reason: "already-released" };
 						released = true;
 						try {
-							// nosemgrep: AIK_ts_generic_path_traversal -- path is resolved and checked inside the confirmed OpenSpec root (see docs/VERIFICATION.md)
+							// nosemgrep: AIK_ts_generic_path_traversal -- path is resolved and checked inside the confirmed OpenSpec root
 							const current = parseOwner(await readFile(lockPath, "utf-8"));
 							if (!sameToken(current?.token, token)) return { released: false, reason: "not-owner" };
 							await unlink(lockPath);
