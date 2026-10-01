@@ -4,7 +4,7 @@ This project is a local derivative of `@juicesharp/rpiv-todo` version 2.11.0.
 
 - Upstream repository: https://github.com/juicesharp/rpiv-mono (directory `packages/rpiv-todo`)
 - Upstream licence: MIT, Copyright (c) 2026 juicesharp. The full text is in `LICENSE`.
-- Copied on: 2026-09-30, from the npm package installed under `~/.pi/agent/npm/node_modules/@juicesharp/rpiv-todo/`.
+- Copied on: 2026-09-30, from the published npm package `@juicesharp/rpiv-todo` 2.11.0.
 - Excluded from the copy: `locales/`, `docs/`, `README.md`, `package.json`, tests (not distributed upstream).
 
 Copying code does not prove it is free of defects. Each file below starts byte-identical to upstream.

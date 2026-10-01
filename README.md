@@ -1,140 +1,71 @@
 # Opinionated modular Pi todo system (OMPTS)
 
-A todo extension for Pi with two modes.
+A todo list for the [Pi](https://github.com/earendil-works/pi) coding agent. It has two modes.
 
-- **Normal mode** tracks tasks for one session. It behaves like `@juicesharp/rpiv-todo` 2.11.0.
-- **OpenSpec sync mode** shows the tasks of one OpenSpec change. The change's `tasks.md` stays the source of truth. Completing a linked task checks its box.
+- **Normal mode** keeps a task list for one session.
+- **OpenSpec sync mode** shows the tasks of one [OpenSpec](https://github.com/Fission-AI/OpenSpec) change. When the agent completes a task, the extension ticks the box in `tasks.md` and checks that OpenSpec agrees.
 
-This package is a local derivative of `@juicesharp/rpiv-todo` 2.11.0 (MIT). See `LICENSE` and `NOTICE.md`.
+## Why use it
 
-## Ownership
+- The panel counts every task, so hiding finished rows does not hide your progress.
+- Stopped work shows `Idle` or `Paused`. It never looks like it is still running.
+- A task is complete only when the box is written and OpenSpec confirms it.
+- A stale or broken view is marked as stale. It never passes for current.
+- `/todos refresh` redraws the panel without changing any task.
 
-You own this code. It has no `rpiv-*` dependency. It needs these host packages, listed as wildcard peers in `package.json`: `@earendil-works/pi-ai`, `@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui` and `typebox`. Pi supplies them. Do not install private copies.
+## Install
 
-Pi loads this package from its directory. See Activation for how it is wired in, and Rollback to undo it.
-
-## Usage
-
-### Commands
-
-| Command | What it does |
-| --- | --- |
-| `/todos` | Shows the tasks. In sync mode it also shows the OpenSpec change, freshness, planning readiness and progress. |
-| `/todos refresh` | Redraws the panel from committed state. In sync mode it first re-reads the change. It never writes a task file. |
-| `/todo-settings` | Sets the session mode, the default mode for new sessions, the panel line budget and the collapse key. |
-
-### Choose a mode
-
-1. Run `/todo-settings`.
-2. Pick **Session mode**, then **OpenSpec sync**.
-3. Pick a change. The menu shows the planning root. Changes that cannot be bound are listed with a reason.
-4. Confirm the root and the change.
-
-Normal mode is the default. Cancelling any step leaves the session as it was.
-
-### Tool calls
-
-The agent uses one tool named `todo`. The examples below are checked by a test against the real tool schema.
-
-Create an ordinary task (normal mode):
-
-```json
-{ "action": "create", "subject": "Write tests" }
+```sh
+pi install git:github.com/cmdaltctr/opinionated-modular-pi-todo-system-ompts
 ```
 
-Start work on a linked task (sync mode). `expectedRevision` comes from the latest `list`, `get` or result:
+Then run `/reload` in Pi. If you already use `@juicesharp/rpiv-todo`, read the install guide first. Both register a `todo` tool, so you must disable one.
 
-```json
-{ "action": "update", "id": 2, "status": "in_progress", "activeForm": "writing tests", "expectedRevision": "0123456789abcdef" }
+## Tell your agent how to use it
+
+The `todo` tool already carries these rules in its own guidance. Add this block to `~/.pi/agent/AGENTS.md` (or a project `AGENTS.md`) if your agent still skips them.
+
+```markdown
+## Todo list (OMPTS extension)
+
+- Use the `todo` tool for work with 3 or more steps. Set a task `in_progress` before you start. Set it `completed` the moment it is done.
+- In OpenSpec sync mode, call `list` first. Work under the listed task ids. Do not copy plan tasks into new tasks.
+- Pass `expectedRevision` when you change a linked task's status. Take it from the latest `list`, `get` or result.
+- Complete a linked task only when its acceptance criteria are met. A ticked box is not proof that tests passed. Say what you ran and what it showed.
+- For a temporary step outside the plan, use `scope: "incidental"` with a `reason`.
+- Set `waitingReason` when you wait for an approval or a review. Set `failureReason` when work fails. Clear each with an empty string when it is resolved.
+- If a result says a box was written but not confirmed, stop and tell the user. Do not repeat the completion.
 ```
 
-Complete a linked task. The tool writes the checkbox, then asks the OpenSpec CLI to confirm the same task. It reports success only when both succeed:
+## Documentation
 
-```json
-{ "action": "update", "id": 2, "status": "completed", "expectedRevision": "0123456789abcdef" }
-```
+- [How to install](docs/INSTALL.md)
+- [How to use](docs/USAGE.md)
+- [How to uninstall](docs/UNINSTALL.md)
+- [Verification record](docs/VERIFICATION.md): checks, security findings and known risks
 
-Track a temporary step that is not part of the plan:
+## Requirements
 
-```json
-{ "action": "create", "subject": "Debug flaky test", "scope": "incidental", "reason": "investigating a failure" }
-```
+- Pi 0.99.1 or newer. Tested on 0.99.1.
+- Node.js 22 or newer.
+- The `openspec` command on your PATH, for sync mode only. Tested with 1.13.1.
 
-Say what a task waits for, then clear it:
+Pi supplies these host packages. The extension lists them as peers and ships no copy: `@earendil-works/pi-ai`, `@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui` and `typebox`.
 
-```json
-{ "action": "update", "id": 2, "waitingReason": "approval from the owner" }
-```
-
-```json
-{ "action": "update", "id": 2, "waitingReason": "" }
-```
-
-### What the panel shows
-
-- The heading counts every task, including completed rows that are hidden. In sync mode it shows `OpenSpec 2/5` and, if you have any, `incidental 1/2`.
-- `⚠ stale` or `⚠ unavailable` means the OpenSpec view could not be read. Linked changes are off until a read succeeds. `↻` means a read is running.
-- A row shows `Idle` or `Paused` when the agent is not running. It shows `Blocked by #N` while a dependency is unfinished. It never shows a running mark for a stopped agent.
-- When all tasks are done and their rows are hidden, the panel shows `all completed (N rows hidden)`.
-
-## Limits
-
-- Sync mode supports `spec-driven` changes with one tracked task file. Other schemas are listed as unsupported.
-- Linked wording cannot be changed or deleted through the tool. Revise the OpenSpec plan instead.
-- Tasks with identical wording are read-only, because they cannot be matched to one checkbox.
-- A checked box records progress. It does not show that tests passed.
-- Reopening a completed task is done by editing `tasks.md`. The next refresh shows it.
-- A stale lock file (`tasks.md.pi-todo.lock`) is never removed automatically. The error message names the owner. If that process has stopped, delete the file.
-- An editor that ignores the lock can still race the final replace of a task file.
-- Tested on macOS with Pi 0.99.1 and OpenSpec 1.13.1.
-
-## Panel recovery
-
-If the panel does not draw, or draws old data:
-
-1. Run `/todos refresh`.
-2. Read the message. It names the earlier failure when the panel recovers.
-3. If it fails again, the message says your tasks are unchanged. Retry after fixing the cause.
-
-A failed redraw never undoes a task change or a checkbox. The tool result also tells the agent when a redraw failed.
-
-If a completion is reported as written but not confirmed, run `/todos refresh`, check `tasks.md`, and do not repeat the completion.
-
-## Activation
-
-Done on 2026-10-01. These are the steps that were applied, kept as a record. The settings backup is in `a dated backup folder`.
-
-1. Back up `~/.pi/agent/settings.json`.
-2. Add `"pi": { "extensions": ["./src/extension.ts"] }` to this package's `package.json`.
-3. In `packages`, add the absolute path of this directory.
-4. Change the original entry `"npm:@juicesharp/rpiv-todo"` to the object form that loads no extension:
-
-```json
-{ "source": "npm:@juicesharp/rpiv-todo", "extensions": [] }
-```
-
-5. Reload Pi.
-6. Check that exactly one `todo` tool exists, and that Pi prints no packaging warning for this package.
-
-## Rollback
-
-1. Remove this directory's path from `packages` in `~/.pi/agent/settings.json`.
-2. Restore the original entry:
-
-```json
-"npm:@juicesharp/rpiv-todo"
-```
-
-3. Reload Pi and check that exactly one `todo` tool exists.
-
-Nothing is deleted. Your task history stays in your sessions. OpenSpec checkboxes that were already written stay written. The preferences file `~/.config/pi-todo/config.json` stays and is ignored by the original package. Rolling back restores basic todo history only, not OpenSpec mode.
-
-## Development
+## Develop
 
 ```sh
 bun install
-./node_modules/.bin/vitest run        # tests
-./node_modules/.bin/tsc -p .          # type check
+bun run setup:host   # fetches the Pi host packages into .pi-host/
+bun run ci           # lint, type check and tests
 ```
 
-`docs/VERIFICATION.md` records the checks, security findings and residual risks.
+- `git push` runs `bun run ci` first, through a Husky hook. Skip it once with `git push --no-verify`.
+- GitHub Actions runs the same steps on every push and pull request.
+- Contributor notes for agents are in [AGENTS.md](AGENTS.md).
+
+## Licence and credit
+
+MIT. See [LICENSE](LICENSE).
+
+This project began as a copy of `@juicesharp/rpiv-todo` 2.11.0 (MIT, copyright juicesharp). Each reused file and its hash are listed in [NOTICE.md](NOTICE.md).

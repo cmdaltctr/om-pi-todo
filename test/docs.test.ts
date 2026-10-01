@@ -13,42 +13,50 @@ import { refreshPreferences } from "../src/preferences.js";
 
 useCleanEnvironment();
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const readme = readFileSync(join(ROOT, "README.md"), "utf-8");
-const blocks = [...readme.matchAll(/```(\w*)\n([\s\S]*?)```/g)].map((m) => ({ lang: m[1], text: m[2].trim() }));
-const json = blocks.filter((b) => b.lang === "json");
-const isCall = (v: unknown): v is Record<string, any> => typeof v === "object" && v !== null && "action" in v;
-const calls = json.map((b) => JSON.parse(b.text.startsWith("{") || b.text.startsWith("[") ? b.text : `[${b.text}]`)).filter(isCall);
+const read = (file: string) => readFileSync(join(ROOT, file), "utf-8");
+const readme = read("README.md");
+const install = read("docs/INSTALL.md");
+const usage = read("docs/USAGE.md");
+const uninstall = read("docs/UNINSTALL.md");
+const all = [readme, install, usage, uninstall].join("\n");
+const pkg = JSON.parse(read("package.json"));
 
-describe("README examples match the product", () => {
+const blocks = [...all.matchAll(/```(\w*)\n([\s\S]*?)```/g)].map((m) => ({ lang: m[1], text: m[2].trim() }));
+const json = blocks.filter((b) => b.lang === "json");
+const parse = (text: string) => JSON.parse(text.startsWith("{") || text.startsWith("[") ? text : `[${text}]`);
+const isCall = (v: unknown): v is Record<string, any> => typeof v === "object" && v !== null && "action" in v;
+const calls = json.map((b) => parse(b.text)).filter(isCall);
+const REPO = "github.com/cmdaltctr/opinionated-modular-pi-todo-system-ompts";
+
+describe("tool examples in the docs match the product", () => {
 	it("every JSON example parses", () => {
 		expect(json.length).toBeGreaterThanOrEqual(8);
-		for (const b of json) expect(() => JSON.parse(b.text.startsWith("{") || b.text.startsWith("[") ? b.text : `[${b.text}]`), b.text).not.toThrow();
+		for (const b of json) expect(() => parse(b.text), b.text).not.toThrow();
 	});
 
-	it("every tool call example uses only real parameters and a real action, and fits the schema", () => {
+	it("every tool call uses only real parameters and a real action", () => {
 		const props = Object.keys((TodoParamsSchema as any).properties);
 		const actions = (TodoParamsSchema as any).properties.action.enum as string[];
-		expect(calls.length).toBe(6);
+		expect(calls).toHaveLength(6);
 		for (const call of calls) {
 			expect(actions).toContain(call.action);
 			for (const key of Object.keys(call)) expect(props, key).toContain(key);
 		}
 	});
 
-	it("each example behaves as the README says through the real tool", async () => {
+	it("each example behaves as the docs say through the real tool", async () => {
 		const host = createHost();
 		registerTodoTool(host.pi);
 		const ctx = createCtx("s1", []);
-		const ex = (n: number) => calls[n];
-		expect((await callTool(host, ctx, ex(0))).text).toBe("Created #1: Write tests (pending)");
+		expect((await callTool(host, ctx, calls[0])).text).toBe("Created #1: Write tests (pending)");
 		await callTool(host, ctx, { action: "create", subject: "Second" });
-		expect((await callTool(host, ctx, { ...ex(4), id: 2 })).text).toBe("Updated #2");
+		expect((await callTool(host, ctx, { ...calls[4], id: 2 })).text).toBe("Updated #2");
 		expect(getState("s1").tasks[1].waitingReason).toBe("approval from the owner");
-		expect((await callTool(host, ctx, { ...ex(5), id: 2 })).text).toBe("Updated #2");
+		expect((await callTool(host, ctx, { ...calls[5], id: 2 })).text).toBe("Updated #2");
 		expect(getState("s1").tasks[1].waitingReason).toBeUndefined();
 	});
 
-	it("the incidental example is accepted in sync mode and refused in normal mode wording", async () => {
+	it("the incidental example is accepted in sync mode", async () => {
 		setSessionMode("sync", { mode: "openspec", binding: { root: "/none", change: "a" } });
 		const runtime = createRuntime({ getOrdinary: (id) => getState(id).tasks, run: async () => ({ ok: false, kind: "spawn", message: "none" }) });
 		const host = createHost();
@@ -57,76 +65,177 @@ describe("README examples match the product", () => {
 		expect((await callTool(host, createCtx("sync", []), example)).text).toBe("Created #1: Debug flaky test (pending) [incidental]");
 		runtime.stopAll();
 	});
+});
 
-	it("every slash command in the README is registered, and no unregistered one appears", () => {
+describe("commands and menus in the docs match the product", () => {
+	it("every slash command named is ours or Pi's /reload, and each of ours is registered", () => {
 		const host = createHost();
 		registerTodosCommand(host.pi);
 		registerTodoSettingsCommand(host.pi, async () => ({ ok: false, error: "x" }));
-		const mentioned = new Set([...readme.matchAll(/`\/([a-z-]+)(?: [a-z]+)?`/g)].map((m) => m[1]));
-		// The only subcommand the README documents is `refresh`.
-		const subcommands = [...readme.matchAll(/`\/todos ([a-z]+)`/g)].map((m) => m[1]);
-		expect(new Set(subcommands)).toEqual(new Set(["refresh"]));
+		const mentioned = new Set([...all.matchAll(/`\/([a-z-]+)(?: [a-z]+)?`/g)].map((m) => m[1]));
+		mentioned.delete("reload");
 		for (const name of mentioned) expect([...host.commands.keys()], name).toContain(name);
 		expect(mentioned).toEqual(new Set(["todos", "todo-settings"]));
+		expect(new Set([...all.matchAll(/`\/todos ([a-z]+)`/g)].map((m) => m[1]))).toEqual(new Set(["refresh"]));
 	});
 
-	it("the documented `/todos refresh` argument is the one the command accepts", async () => {
+	it("`/todos refresh` is recognised by the command", async () => {
 		const host = createHost();
 		registerTodosCommand(host.pi);
 		const notes: string[] = [];
 		await host.commands.get("todos").handler("refresh", createCtx("s1", [], { hasUI: true, ui: { notify: (m: string) => notes.push(m) } }));
-		expect(notes).toEqual(["Todo panel refreshed."]); // the argument is recognised: it does not fall through to the list view
+		expect(notes).toEqual(["Todo panel refreshed."]);
 	});
 
-	it("the /todo-settings menu offers the four settings the README names", async () => {
+	it("the settings menu offers the four settings the guide names", async () => {
 		await refreshPreferences();
 		const host = createHost();
 		registerTodoSettingsCommand(host.pi, async () => ({ ok: false, error: "x" }));
 		const script = scriptedUi({ select: ["Done"] });
 		await host.commands.get("todo-settings").handler("", createCtx("s1", [], { hasUI: true, ui: script.ui }));
 		const options = script.calls[0].args[1] as string[];
-		for (const label of ["Session mode", "Default mode for new sessions", "Panel line budget", "Collapse key"]) expect(options.some((o) => o.startsWith(label)), label).toBe(true);
+		for (const label of ["Session mode", "Default mode for new sessions", "Panel line budget", "Collapse key"]) {
+			expect(options.some((o) => o.startsWith(label)), label).toBe(true);
+			expect(usage, label).toContain(`**${label}**`);
+		}
 	});
 
-	it("the panel marks the README names are the marks the product uses", () => {
-		const src = ["src/todo-overlay.ts", "src/view/format.ts", "src/view/presentation.ts"].map((f) => readFileSync(join(ROOT, f), "utf-8")).join("\n");
-		for (const mark of ["⚠", "↻", "Idle", "Paused", "Blocked by", "all completed", "OpenSpec", "incidental"]) expect(src, mark).toContain(mark);
+	it("the marks the guide explains are marks the product draws", () => {
+		const src = ["src/todo-overlay.ts", "src/view/format.ts", "src/view/presentation.ts"].map(read).join("\n");
+		for (const mark of ["⚠", "↻", "Idle", "Paused", "Blocked by", "all completed", "OpenSpec", "incidental", "completed hidden"]) {
+			expect(src, mark).toContain(mark);
+		}
+		for (const mark of ["⚠ stale", "↻", "`Idle`", "`Paused`", "Blocked by #3", "all completed"]) expect(usage, mark).toContain(mark);
 	});
 
-	it("the settings snippets have the shapes Pi documents", () => {
-		const objectForm = json.map((b) => b.text).find((t) => t.includes('"extensions": []'))!;
-		expect(JSON.parse(objectForm)).toEqual({ source: "npm:@juicesharp/rpiv-todo", extensions: [] });
-		const original = blocks.find((b) => b.text === '"npm:@juicesharp/rpiv-todo"')!;
-		expect(JSON.parse(`[${original.text}]`)).toEqual(["npm:@juicesharp/rpiv-todo"]);
+	it("the limits and file names it states are enforced by the code", async () => {
+		const { lockPathFor } = await import("../src/openspec/lock.js");
+		expect(lockPathFor("/x/tasks.md")).toBe("/x/tasks.md.pi-todo.lock");
+		expect(usage).toContain("tasks.md.pi-todo.lock");
+		const { preferencesPath } = await import("../src/preferences.js");
+		expect(preferencesPath().endsWith(join("pi-todo", "config.json"))).toBe(true);
+		expect(usage).toContain("~/.config/pi-todo/config.json");
+		expect(uninstall).toContain("~/.config/pi-todo/config.json");
+		const { checkStatus } = await import("../src/openspec/discover.js");
+		const other = checkStatus({ schemaName: "custom", changeRoot: "/r/c", artifactPaths: { tasks: { existingOutputPaths: ["/r/c/tasks.md"] } }, root: { path: "/r" } }, { path: "/r" });
+		expect(other).toMatchObject({ supported: false, reason: expect.stringContaining("spec-driven") });
+		expect(usage).toContain("`spec-driven`");
+	});
+});
+
+describe("the agent snippet in the README is accurate", () => {
+	const snippet = /```markdown\n([\s\S]*?)```/.exec(readme)![1];
+
+	it("every tool field and action it names exists", () => {
+		const props = Object.keys((TodoParamsSchema as any).properties);
+		const actions = (TodoParamsSchema as any).properties.action.enum as string[];
+		const statuses = (TodoParamsSchema as any).properties.status.enum as string[];
+		for (const field of ["expectedRevision", "scope", "reason", "waitingReason", "failureReason"]) {
+			expect(snippet, field).toMatch(new RegExp(`\`${field}[\`:]`));
+			expect(props, field).toContain(field);
+		}
+		expect(actions).toEqual(expect.arrayContaining(["list", "get"]));
+		for (const status of ["in_progress", "completed"]) expect(statuses).toContain(status);
+		expect(snippet).toContain('`scope: "incidental"`');
 	});
 
-	it("the activation record names a real entry file and the manifest declares it", () => {
-		expect(existsSync(join(ROOT, "src/extension.ts"))).toBe(true);
-		expect(readme).toContain('"pi": { "extensions": ["./src/extension.ts"] }');
-		const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf-8"));
-		expect(pkg.pi).toEqual({ extensions: ["./src/extension.ts"] }); // the entry the README documents
+	it("the rules it gives are rules the tool's own guidance gives", async () => {
+		const { DEFAULT_PROMPT_GUIDELINES } = await import("../src/todo.js");
+		const guidance = DEFAULT_PROMPT_GUIDELINES.join("\n");
+		expect(guidance).toContain("expectedRevision");
+		expect(guidance).toContain('scope "incidental"');
+		expect(guidance).toContain("waitingReason");
+		expect(guidance).toContain("never paraphrase a plan task");
+		expect(guidance).toMatch(/not proof that tests passed/);
+	});
+
+	it("is short enough to paste", () => {
+		expect(snippet.split("\n").filter((l) => l.startsWith("- "))).toHaveLength(7);
+		expect(snippet.split(/\s+/).length).toBeLessThan(200);
+	});
+});
+
+describe("install and uninstall guides match the package", () => {
+	it("the git install command is the same everywhere and matches package.json", () => {
+		const command = `pi install git:${REPO}`;
+		expect(readme).toContain(command);
+		expect(install).toContain(command);
+		expect(uninstall).toContain(`pi remove git:${REPO}`);
+		expect(pkg.repository.url).toBe(`git+https://${REPO}.git`);
+		expect(install).toContain(`git clone https://${REPO}.git`);
+	});
+
+	it("the manifest declares an entry file that exists", () => {
+		expect(pkg.pi).toEqual({ extensions: ["./src/extension.ts"] });
 		for (const entry of pkg.pi.extensions) expect(existsSync(join(ROOT, entry)), entry).toBe(true);
-		expect(readme).toContain("## Activation");
-		expect(readme).toContain("Done on 2026-10-01");
 	});
 
-	it("the host peers it lists are exactly the declared peers", () => {
-		const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf-8"));
-		const sentence = /It needs these host packages[^:]*: ([^.]*)\./.exec(readme)![1];
+	it("the rpiv-todo settings snippets have the shapes Pi documents", () => {
+		const objects = json.map((b) => b.text).filter((t) => t.includes('"extensions": []'));
+		expect(objects).toHaveLength(2); // once to disable, once shown again to restore
+		for (const o of objects) expect(JSON.parse(o)).toEqual({ source: "npm:@juicesharp/rpiv-todo", extensions: [] });
+		const plain = json.map((b) => b.text).filter((t) => t === '"npm:@juicesharp/rpiv-todo"');
+		expect(plain).toHaveLength(2);
+	});
+
+	it("the requirements it states are declared", () => {
+		expect(readme).toContain("Node.js 22");
+		expect(pkg.engines.node).toBe(">=22");
+		expect(readme).toContain("1.13.1");
+		expect(read(".github/workflows/ci.yml")).toContain("@fission-ai/openspec@1.13.1");
+		expect(readme).toContain("0.99.1");
+		expect(read("scripts/setup-host.sh")).toContain('PI_HOST_VERSION="${PI_HOST_VERSION:-0.99.1}"');
+	});
+
+	it("the host packages it lists are exactly the declared peers", () => {
+		const sentence = /Pi supplies these host packages[^:]*: ([^.]*)\./.exec(readme)![1];
 		const listed = [...sentence.matchAll(/`([^`]+)`/g)].map((m) => m[1]);
 		expect(new Set(listed)).toEqual(new Set(Object.keys(pkg.peerDependencies)));
 		expect(listed).toHaveLength(Object.keys(pkg.peerDependencies).length);
 	});
 
-	it("the limits it states are enforced by the code", async () => {
-		const lock = await import("../src/openspec/lock.js");
-		expect(lock.lockPathFor("/x/tasks.md")).toBe("/x/tasks.md.pi-todo.lock");
-		expect(readme).toContain("tasks.md.pi-todo.lock");
-		const { preferencesPath } = await import("../src/preferences.js");
-		expect(preferencesPath().endsWith(join("pi-todo", "config.json"))).toBe(true);
-		expect(readme).toContain("~/.config/pi-todo/config.json");
-		const { checkStatus } = await import("../src/openspec/discover.js");
-		const other = checkStatus({ schemaName: "custom", changeRoot: "/r/c", artifactPaths: { tasks: { existingOutputPaths: ["/r/c/tasks.md"] } }, root: { path: "/r" } }, { path: "/r" });
-		expect(other).toMatchObject({ supported: false, reason: expect.stringContaining("spec-driven") });
+	it("every doc the README links to exists", () => {
+		const links = [...readme.matchAll(/\]\(([\w./-]+\.md)\)/g)].map((m) => m[1]);
+		expect(links.length).toBeGreaterThanOrEqual(5);
+		for (const link of links) expect(existsSync(join(ROOT, link)), link).toBe(true);
+	});
+
+	it("the licence file is MIT and keeps the upstream notice", () => {
+		const licence = read("LICENSE");
+		expect(licence.startsWith("MIT License")).toBe(true);
+		expect(licence).toContain("juicesharp");
+		expect(pkg.license).toBe("MIT");
+	});
+});
+
+describe("the local gate, the hook and CI run the same steps", () => {
+	it("package.json ci runs lint, types and tests, and the hook runs ci", () => {
+		for (const step of ["bun run lint", "bun run typecheck", "bun run test"]) expect(pkg.scripts.ci, step).toContain(step);
+		expect(read(".husky/pre-push")).toContain("bun run ci");
+	});
+
+	it("the workflow runs the same three steps and installs from the lockfile", () => {
+		const workflow = read(".github/workflows/ci.yml");
+		for (const step of ["bun run lint", "bun run typecheck", "bun run test", "bun run setup:host", "bun install --frozen-lockfile"]) {
+			expect(workflow, step).toContain(step);
+		}
+		expect(workflow).toContain("permissions:\n  contents: read");
+	});
+
+	it("every action in the workflow is pinned to a full commit SHA", () => {
+		const uses = [...read(".github/workflows/ci.yml").matchAll(/uses:\s*(\S+)/g)].map((m) => m[1]);
+		expect(uses.length).toBeGreaterThanOrEqual(4);
+		for (const u of uses) expect(u, u).toMatch(/@[0-9a-f]{40}$/);
+	});
+
+	it("the hook is installed through a prepare script that cannot break a plain install", () => {
+		expect(pkg.scripts.prepare).toBe("husky || true");
+	});
+});
+
+describe("the repository holds nothing personal", () => {
+	it("no tracked doc, config or script names a home directory", () => {
+		const files = ["README.md", "AGENTS.md", "NOTICE.md", "docs/INSTALL.md", "docs/USAGE.md", "docs/UNINSTALL.md", "docs/VERIFICATION.md", "tsconfig.json", "vitest.config.ts", "package.json", "scripts/setup-host.sh", ".github/workflows/ci.yml", ".husky/pre-push"];
+		for (const f of files) expect(read(f), f).not.toMatch(/\/Users\/|\/home\/[a-z]+\/|\.pi-backups/);
 	});
 });

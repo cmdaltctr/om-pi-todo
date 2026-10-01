@@ -1,80 +1,83 @@
 # Verification record
 
-Change: `add-openspec-todo-sync`. Recorded on 2026-10-01 at the end of Stage 7.
-Environment: Pi 0.99.1, OpenSpec CLI 1.13.1, Node 26.9, Vitest 5.0.3, TypeScript 7.0.2.
+This page records how the extension was checked, what the security scan found, and which risks remain.
 
-## Commands
+- Recorded on 2026-10-01.
+- Tested with Pi 0.99.1, OpenSpec CLI 1.13.1, Node 26.9, Vitest 5.0.3 and TypeScript 7.0.2.
 
-| Purpose | Command | Result |
+## Checks and results
+
+| Check | Command | Result |
 | --- | --- | --- |
-| Regression suite | `./node_modules/.bin/vitest run` | 30 files, 654 tests, all passing (about 23 s on an idle machine) |
-| Type check | `./node_modules/.bin/tsc -p .` (`strict`) | 0 errors |
-| Dependency audit | `bun audit` | No vulnerabilities in 223 packages |
-| Security scan | Aikido `aikido_scan_paths` over all 37 `src` files plus `package.json`, `tsconfig.json`, `vitest.config.ts` | See findings below |
-| Real CLI | Tests marked `describe.skipIf(!HAS_CLI)` run the installed `openspec` in disposable roots | Passing |
+| Tests | `bun run test` | 30 files, 666 tests, all passing. About 25 seconds on an idle machine. |
+| Lint | `bun run lint` | Oxlint, warnings denied. No findings. |
+| Type check | `bun run typecheck` | `tsc` in strict mode. No errors. |
+| Dependency audit | `bun run audit` | No known vulnerabilities. |
+| Security scan | Aikido, over every source file | See below. |
+| Real CLI | Tests that run the installed `openspec` in temporary folders | Passing. They skip when `openspec` is missing. |
+
+Run `bun run ci` to repeat the first three checks. GitHub Actions runs them on every push.
 
 ## Security findings
 
-The first scan reported 14 findings: 13 path-pattern findings and 1 timing-comparison finding. After the timing fix the second scan reported 16, all path-pattern. The count rose from 13 to 16 although the writer was not edited between the scans. The first scan covered 37 files and the second 40 (it added `package.json`, `tsconfig.json` and `vitest.config.ts`). The cause of the difference is not established. All 16 sit on file-system calls that take a path variable.
+The scan found one real issue. It also reports 16 findings of one type that I judge to be false alarms.
 
-| Finding | Count | Assessment | Action |
-| --- | --- | --- | --- |
-| `AIK_ts_generic_path_traversal` | 16 | See the path-control analysis below. Every path is contained or derived from a contained path. | Not suppressed in the Aikido platform. Left for the owner to accept or ignore. |
-| `AIK_ts_node_timing_attack` on the lock token comparison | 1 | Genuine pattern, low real risk: the token is not a secret. | Fixed. `lock.ts` now compares with `crypto.timingSafeEqual`. Not reported on the rescan. |
+| Finding | Count | Verdict | Action |
+| --- | ---: | --- | --- |
+| Token compared with `!==` in the lock release (`AIK_ts_node_timing_attack`) | 1 | Real pattern. Low risk, because the token is not a secret. | Fixed. The code now uses `crypto.timingSafeEqual`. |
+| File access with a path variable (`AIK_ts_generic_path_traversal`) | 16 | False alarms. Every path is contained. | Not suppressed in Aikido. The owner decides. |
 
-### Path-control analysis
+Why the path findings are false alarms:
 
-- **Writes to a task file** (`writer.ts`): the file and the change directory are resolved with `realpath`, and both must lie inside the confirmed planning root. A link that leaves the root is refused (`unsafe-path`). Tests cover a file link and a directory link that escape.
-- **Lock and staging files**: derived from the real path of the target, in the same directory. They are created with `wx`, which cannot follow a link.
-- **Reads of the task file** (`snapshot.ts`): the path comes from `openspec status`, and `checkStatus` requires it to be inside the change directory, which must be inside the planning root. Before the first read the snapshot provider also resolves the file, the change directory and the root with `realpath` and refuses any link that leads outside. This was added after the first version of this record, which listed it as a residual risk.
-- **Preferences** (`preferences.ts`): the path is built from `XDG_CONFIG_HOME` (absolute only) or the home directory. The user controls both. No tool or model input reaches it.
-- **Change names** that become CLI arguments must match `^[A-Za-z0-9][A-Za-z0-9._-]*$`. The CLI runs without a shell. A test passes hostile arguments such as `; touch PWNED` and confirms nothing runs.
+- **Writes to a task file.** The file and its folder are resolved with `realpath`. Both must be inside the confirmed OpenSpec root. A link that leaves the root is refused. Tests cover a file link and a folder link.
+- **Lock and temporary files.** They sit beside the real task file. They are created with the `wx` flag, so the open fails if the name already exists.
+- **Reads of the task file.** The path comes from `openspec status`. Before the first read, the code resolves the file, its folder and the root with `realpath`. It refuses a link that leads outside. The writer checks again just before it replaces the file.
+- **Settings file.** The path comes from `XDG_CONFIG_HOME` (absolute paths only) or the home folder. The user controls both. No tool input reaches it.
+- **CLI arguments.** A change name must match `^[A-Za-z0-9][A-Za-z0-9._-]*$`. The CLI runs without a shell. A test sends hostile text such as `; touch PWNED` and checks that nothing runs.
 
-## Test-failure demonstrations
+## Safeguard removal tests
 
-Each safeguard was removed in a scratch copy and the suite was run. A removal counts as caught when at least one test fails.
+Each safeguard was removed in a scratch copy of the code. The suite was then run. A removal counts as caught when at least one test fails.
 
-Stage 7 safeguard removals (all caught):
-
-| Safeguard removed | Tests failing |
-| --- | --- |
-| Confirming CLI refresh after the write (early success) | 7 |
-| Confirmation of the target task | 7 |
-| Awaiting persistence | 3 |
-| Render scheduling after a completed write | 1 |
-| Render scheduling after any tool update | 15 |
-| Render scheduling after reconciliation | 9 |
-| Binding-generation check on refresh | 3 |
-| Binding-generation check before the file replace | 1 |
-| Binding-generation check before the runtime publishes | 2 |
-| Per-target queue (serialising across unrelated targets) | 2 |
-| Newest-result-wins ordering of overlapping refreshes | 2 |
+| Safeguard removed | Tests that failed |
+| --- | ---: |
+| Confirming CLI read after the write | 7 |
+| Check that the same task is confirmed | 7 |
+| Waiting for the write to finish | 3 |
+| Redraw after a completed write | 1 |
+| Redraw after any tool update | 15 |
+| Redraw after a refresh | 9 |
+| Binding check on refresh | 3 |
+| Binding check before the file is replaced | 1 |
+| Binding check before the view is published | 2 |
+| One queue per file (not one queue for all files) | 2 |
+| Newest refresh wins over an older one | 2 |
 | Write block after an unconfirmed completion | 4 |
-| Lock release on a failed section | 1 |
-| Watcher close on stop | 1 |
-| Coalescer overlap guard | 1 |
-| Synchronous file read in the runtime | 1 |
-| Running indicator tied to the agent run | 1 |
-| Abort signal passed to the CLI | 1 (after a test was added) |
+| Lock release after a failed write | 1 |
+| Watcher closed on stop | 1 |
+| Watcher does not overlap runs | 1 |
+| No synchronous file read in the runtime | 1 |
+| Running mark tied to the agent run | 1 |
+| Abort signal passed to the CLI | 1 |
 
-The first pass, which ran only the three acceptance files, missed 11 of these. The tests that cover them live in earlier stage files. The second pass ran the whole suite and caught 10 of the 11. The eleventh, abort propagation, was a real gap. A test now asserts that the caller's signal reaches every CLI call a tool invocation makes.
+A first pass ran only three test files and missed 11 of these. A second pass ran the whole suite and caught 10. The last one was a real gap. A test now checks that the caller's abort signal reaches every CLI call.
 
-Earlier stages used the same method. Every behaviour test was checked against a deliberately broken scratch copy, and weak tests were strengthened until the breakage failed them.
+Earlier work used the same method. Each behaviour test was run against a deliberately broken copy, and weak tests were made stronger until the breakage failed them.
 
-## Asynchronous test results
+## Asynchronous behaviour
 
-`test/acceptance-async.test.ts` (23 tests) holds each I/O stage open with a deferred promise. While a stage is held it checks that timer ticks continue, an unrelated session works, input events dispatch, and the panel renders. It also checks that no success or confirmed state appears before both persistence and CLI confirmation finish.
+- `test/acceptance-async.test.ts` holds each file or CLI step open on purpose.
+- While a step is held, it checks that timers keep running, input is handled, the panel draws and other sessions work.
+- It also checks that no completion is reported or shown before both the checkbox write and the CLI confirmation finish.
+- `test/acceptance-static.test.ts` scans the source. It forbids synchronous file or process calls, file access while rendering, busy waits and timers that are never cleared.
 
-`test/acceptance-static.test.ts` checks the source for synchronous file, process and wait calls, for I/O in render modules, for busy waiting, and for timers without cleanup.
+## Known risks
 
-## Residual risks
-
-1. **Editors that ignore locks.** A final read-to-rename race remains with a writer that does not use the lock. A revision check before the replace narrows it but cannot close it on a plain file system.
-2. **Stale lock files need manual removal.** The design forbids taking over a lock by age or apparent death. A crashed Pi leaves a lock that a person must delete.
-3. **Symlink swap between check and read.** The link check and the read are separate calls. A link swapped in between them could still be read once. The CLI itself reads the same file in the same window, so this adds no new exposure. It needs an author with write access to the change directory. The writer re-checks again immediately before it replaces the file.
-4. **Checked box is not proof.** A checked box records progress. The tool output says so, but the extension cannot tell whether tests passed.
-5. **Duplicate-wording tasks are read-only.** By design, identical task wording cannot be mapped to one checkbox.
-6. **Timing-sensitive tests.** Real file-watcher tests depend on operating system event latency. They have long deadlines. They failed once under heavy machine load before the deadlines were raised.
-7. **OpenSpec format drift.** Parser parity is tested against 1.13.1. A different release may need the scanner updated. The writer refuses when the file and the CLI disagree.
-8. **Not tested on other platforms.** All runs were on macOS.
-9. **Activation not done.** The extension is not loaded by Pi. Stage 8 covers activation and rollback.
+1. **Editors that ignore the lock.** A tool that does not use the lock can still change the file in the last moment before the replace. A revision check narrows this gap but cannot close it on a plain file system.
+2. **Stale lock files.** A crashed Pi can leave `tasks.md.pi-todo.lock`. The extension never removes it by itself, because it cannot prove the owner has stopped. A person must delete it.
+3. **Link swapped between check and read.** The link check and the read are two calls. A link swapped in between could be read once. The CLI reads the same file in the same window, so this adds no new exposure. It needs write access to the change folder.
+4. **A ticked box is not proof.** A ticked box records progress. It does not show that tests passed.
+5. **Tasks with the same wording are read-only.** The extension cannot match them to one checkbox.
+6. **Slow machines.** The tests that use real file watchers depend on operating system timing. They failed once under heavy load. Their deadlines are now long.
+7. **OpenSpec format changes.** The task parser matches OpenSpec 1.13.1. A newer release may need an update. The writer refuses to act when the file and the CLI disagree.
+8. **One platform.** All runs were on macOS.
