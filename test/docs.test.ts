@@ -218,10 +218,10 @@ describe("install and uninstall guides match the package", () => {
 	it("the requirements it states are declared", () => {
 		expect(readme).toContain("Node.js 22");
 		expect(pkg.engines.node).toBe(">=22");
-		expect(readme).toContain("1.13.1");
-		expect(read(".github/workflows/ci.yml")).toContain("@fission-ai/openspec@1.13.1");
-		expect(readme).toContain("0.99.1");
-		expect(read("scripts/setup-host.sh")).toContain('PI_HOST_VERSION="${PI_HOST_VERSION:-0.99.1}"');
+		expect(readme).toContain("1.15.0");
+		expect(read(".github/workflows/ci.yml")).toContain("@fission-ai/openspec@1.15.0");
+		expect(readme).toContain("1.4.0");
+		expect(read("scripts/setup-host.sh")).toContain('PI_HOST_VERSION="${PI_HOST_VERSION:-1.4.0}"');
 	});
 
 	it("the host packages it lists are exactly the declared peers", () => {
