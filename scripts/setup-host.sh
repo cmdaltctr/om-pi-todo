@@ -12,7 +12,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-PI_HOST_VERSION="${PI_HOST_VERSION:-0.99.1}"
+PI_HOST_VERSION="${PI_HOST_VERSION:-1.4.0}"
 TYPEBOX_VERSION="${TYPEBOX_VERSION:-1.3.27}"
 TARGET=".pi-host"
 

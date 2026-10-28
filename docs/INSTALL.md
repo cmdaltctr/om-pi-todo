@@ -6,7 +6,7 @@ This guide installs the extension into Pi. It takes about two minutes.
 
 You need:
 
-- Pi 0.99.1 or newer.
+- Pi 1.4.0 or newer.
 - Node.js 22 or newer.
 - The `openspec` command, only if you want sync mode. Check with `openspec --version`.
 

@@ -45,9 +45,9 @@ The `todo` tool already carries these rules in its own guidance. Add this block 
 
 ## Requirements
 
-- Pi 0.99.1 or newer. Tested on 0.99.1.
+- Pi 1.4.0 or newer. Tested on 1.4.0.
 - Node.js 22 or newer.
-- The `openspec` command on your PATH, for sync mode only. Tested with 1.13.1.
+- The `openspec` command on your PATH, for sync mode only. Tested with 1.15.0.
 
 Pi supplies these host packages. The extension lists them as peers and ships no copy: `@earendil-works/pi-ai`, `@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui` and `typebox`.
 
