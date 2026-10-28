@@ -50,7 +50,7 @@ bun run setup:host
 | Full gate on a fresh clone of HEAD      | `bun run ci:clean`                                   | `.pi-host/`, a commit |
 | Dependency audit                        | `bun run audit`                                      | Network               |
 
-- Real-CLI tests need `openspec` 1.13.1 on the PATH. They skip when it is missing.
+- Real-CLI tests need `openspec` 1.13.1 or newer on the PATH. They skip when it is missing.
 - Startup tests need `pi` on the PATH. They skip when it is missing.
 - Run `bun run ci` before you finish any change. It must pass.
 - Commit, then run `bun run ci:clean`. A passing `ci` can still fail in CI, because your folder differs from a clean clone.

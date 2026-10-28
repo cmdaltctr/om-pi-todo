@@ -8,9 +8,17 @@ const HAS_CLI = spawnSync("openspec", ["--version"], { encoding: "utf-8" }).stat
 const fixture = createOpenspecRoot();
 afterAll(() => fixture.cleanup());
 
+interface CliTask {
+	id: string;
+	description: string;
+	done: boolean;
+	line?: number;
+	sourcePath?: string;
+}
+
 interface CliApply {
 	progress: { total: number; complete: number };
-	tasks: Array<{ id: string; description: string; done: boolean }>;
+	tasks: CliTask[];
 }
 
 let counter = 0;
@@ -29,9 +37,12 @@ function cliView(content: string | Buffer): CliApply {
 /** Every case compares the scanner with the CLI on ids, wording, state and totals. */
 function expectParity(content: string) {
 	const cli = cliView(content);
+	// OpenSpec 1.15.0 adds line and sourcePath metadata that the scanner does not model,
+	// so the comparison stays on the fields the panel and writer rely on.
+	const cliTasks = cli.tasks.map(({ id, description, done }: CliTask) => ({ id, description, done }));
 	const scanned = scanTasks(content);
 	const listed = listTasks(scanned);
-	expect(listed.map((t) => ({ id: t.rowId, description: t.description, done: t.done }))).toEqual(cli.tasks);
+	expect(listed.map((t) => ({ id: t.rowId, description: t.description, done: t.done }))).toEqual(cliTasks);
 	expect(scanned.length).toBe(cli.progress.total);
 	expect(scanned.filter((t) => t.done).length).toBe(cli.progress.complete);
 }

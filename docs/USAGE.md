@@ -143,7 +143,7 @@ Other cases:
 - The agent cannot rename or delete a linked task. Change the plan in OpenSpec instead.
 - A ticked box records progress. It does not prove that tests passed.
 - Do not edit `tasks.md` in an editor at the exact moment the agent completes a task.
-- Tested on macOS with Pi 0.99.1 and OpenSpec 1.13.1.
+- Tested on macOS with Pi 1.4.0 and OpenSpec 1.15.0.
 
 ## Tool reference for agents
 
